@@ -1,0 +1,7 @@
+*.zip
+.vector_cache
+__pycache__
+.vscode
+first_results
+results
+*.csv
