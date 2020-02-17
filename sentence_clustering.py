@@ -21,7 +21,6 @@ from joblib import Parallel, delayed
 from gensim.models.fasttext import load_facebook_model
 import sent2vec
 
-bio_wv = Vectors(name='bio_wv.txt', cache='/home/magod/scratch/embeddings/')
 
 
 def load_all_csv_rows(file_path):
@@ -107,6 +106,7 @@ def preprocess(sents, word_filtering, vectors):
         vocab = sent2vec.Sent2vecModel()
         vocab.load_model('/home/magod/scratch/embeddings/bio_sv.bin')
     elif vectors == 'bio_words':
+        bio_wv = Vectors(name='bio_wv.txt', cache='/home/magod/scratch/embeddings/')
         vocab = Vocab(vocab_counter, vectors=bio_wv, specials=[])
         vocab.vectors = vocab.vectors.numpy()
 
@@ -245,7 +245,7 @@ def domains_clustering():
                             for key, vals in hparams.items()])
     all_configs = tqdm([OrderedDict(config) for config in all_configs])
 
-    results = Parallel(n_jobs=1, verbose=1)(
+    results = Parallel(n_jobs=-1, verbose=1)(
         launch_from_config(config, results_dir, domains)
         for config in all_configs)
 
@@ -277,7 +277,7 @@ def items_clustering():
                             for key, vals in hparams.items()])
     all_configs = tqdm([OrderedDict(config) for config in all_configs])
 
-    results = Parallel(n_jobs=1, verbose=1)(
+    results = Parallel(n_jobs=-1, verbose=1)(
         launch_from_config(config, results_dir, items)
         for config in all_configs)
 
