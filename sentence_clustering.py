@@ -73,7 +73,7 @@ def get_vocab_counter(sents, word_filtering):
     elif word_filtering is 'len3':
         filtering = lambda word: len(word) > 3
     else:
-        raise ValueError('Incorrect word filtering')
+        raise ValueError(f'Incorrect word filtering :{word_filtering}')
 
     sents = [list(filter(filtering, sent)) for sent in sents]
     sents = [(raw_sents[i], sent) for i, sent in enumerate(sents)
