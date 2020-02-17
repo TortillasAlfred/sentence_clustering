@@ -215,7 +215,7 @@ def launch_from_config(config, base_path, sents):
 
     vocab, sents = preprocess(sents, config['word_filtering'],
                               config['vectors'])
-    sent_embeddings = sentence_vectorize(config['sent_embedder'], sents, vocab)
+    sent_embeddings = sentence_vectorize(config['vectors'], sents, vocab)
 
     score, labels = run_clustering(config['method'], config['clusters'], sents,
                                    sent_embeddings, base_path)
