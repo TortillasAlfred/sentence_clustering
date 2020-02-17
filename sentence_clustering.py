@@ -21,6 +21,8 @@ from joblib import Parallel, delayed
 from gensim.models.fasttext import load_facebook_model
 import sent2vec
 
+bio_wv = Vectors(name='bio_wv.txt', cache='/home/magod/scratch/embeddings/')
+
 
 def load_all_csv_rows(file_path):
     with open(file_path, encoding='utf8') as csvfile:
@@ -105,8 +107,7 @@ def preprocess(sents, word_filtering, vectors):
         vocab = sent2vec.Sent2vecModel()
         vocab.load_model('/home/magod/scratch/embeddings/bio_sv.bin')
     elif vectors == 'bio_words':
-        wv = Vectors(name='bio_wv.txt', cache='scratch/embeddings/')
-        vocab = Vocab(vocab_counter, vectors=wv, specials=[])
+        vocab = Vocab(vocab_counter, vectors=bio_wv, specials=[])
         vocab.vectors = vocab.vectors.numpy()
 
     return vocab, sents
