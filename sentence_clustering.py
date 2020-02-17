@@ -6,7 +6,6 @@ from itertools import product
 import os
 import pickle
 import shutil
-from nltk.corpus import stopwords
 from sentence2vec import sentence2vec
 from copy import deepcopy
 from sklearn.cluster import KMeans, SpectralClustering, DBSCAN
@@ -69,6 +68,7 @@ def get_vocab_counter(sents, word_filtering):
     if word_filtering == 'none':
         filtering = lambda _: True
     elif word_filtering == 'stopwords':
+        from nltk.corpus import stopwords
         stop_words = set(stopwords.words('english'))
         filtering = lambda word: word not in stop_words
     elif word_filtering == 'len3':
