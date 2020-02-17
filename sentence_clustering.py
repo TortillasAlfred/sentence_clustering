@@ -1,6 +1,6 @@
 import csv
 
-from torchtext.vocab import Vocab
+from torchtext.vocab import Vocab, Vectors
 from collections import Counter, OrderedDict, defaultdict
 from itertools import product
 import os
@@ -19,6 +19,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from joblib import Parallel, delayed
 from gensim.models.fasttext import load_facebook_model
+import sent2vec
 
 
 def load_all_csv_rows(file_path):
@@ -57,11 +58,11 @@ def get_vocab_counter(sents, word_filtering):
     raw_sents = deepcopy(sents)
     sents = [sent.replace('"', '') for sent in sents]
     sents = [sent.replace(',', ' ') for sent in sents]
-    text = text.replace('/', ' / ')
-    text = text.replace('.-', ' .- ')
-    text = text.replace('.', ' . ')
-    text = text.replace('\'', ' \' ')
-    text = text.lower()
+    sents = [sent.replace('/', ' / ') for sent in sents]
+    sents = [sent.replace('.-', ' .- ') for sent in sents]
+    sents = [sent.replace('.', ' . ') for sent in sents]
+    sents = [sent.replace('\'', ' \' ') for sent in sents]
+    sents = [sent.lower() for sent in sents]
     sents = [sent.split() for sent in sents]
 
     if word_filtering is 'none':
@@ -88,6 +89,7 @@ def preprocess(sents, word_filtering, vectors):
     if isinstance(vectors, int):
         vocab = Vocab(vocab_counter,
                       vectors=f'glove.6B.{vectors}d',
+                      vectors_cache='/home/magod/scratch/embeddings/',
                       specials=[])
         vocab.vectors = vocab.vectors.numpy()
 
@@ -99,10 +101,13 @@ def preprocess(sents, word_filtering, vectors):
         #     raise ValueError(
         #         f'Some words were not found in the embeddings list ! They are \n\n{unk_words}\n'
         #     )
-    elif vectors is 'bio':
-        vectors = load_facebook_model(
-            '.vector_cache/BioWordVec_PubMed_MIMICIII_d200.bin')
-        vectors.save_word2vec_format('.vector_cache/biomed_vecs')
+    elif vectors is 'bio_sents':
+        vocab = sent2vec.Sent2vecModel()
+        vocab.load('/home/magod/scratch/embeddings/bio_sv.bin')
+    elif vectors is 'bio_words':
+        wv = Vectors(name='bio_wv.txt', cache='scratch/embeddings/')
+        vocab = Vocab(vocab_counter, vectors=wv, specials=[])
+        vocab.vectors = vocab.vectors.numpy()
 
     return vocab, sents
 
@@ -197,14 +202,11 @@ def save_results(sentences, sentence_vectors, labels, save_path):
             writer.writerow(row)
 
 
-def sentence_vectorize(method, sents, vocab):
-    if method == 'baseline':
-        return sentence2vec(sents, vocab)
-    elif method == 'sent2vec':
-        raise NotImplementedError()
+def sentence_vectorize(vector_method, sents, vocab):
+    if vector_method is 'bio_sent':
+        return vocab.embed_sentences(sents)
     else:
-        raise NotImplementedError(
-            f'{method} is not a valid sentence vectorizer.')
+        return sentence2vec(sents, vocab)
 
 
 @delayed
@@ -235,9 +237,8 @@ def domains_clustering():
 
     hparams['clusters'] = list(range(4, 9))
     hparams['word_filtering'] = ['none', 'stopwords', 'len3']
-    hparams['vectors'] = ['bio', 50, 100, 200, 300]
-    hparams['method'] = ['kmeans']
-    hparams['sent_embedder'] = ['sent2vec', 'baseline']
+    hparams['vectors'] = ['bio_sent', 'bio', 50, 100, 200, 300]
+    hparams['method'] = ['kmeans', 'DBSCAN']
 
     all_configs = product(*[[(key, val) for val in vals]
                             for key, vals in hparams.items()])
@@ -268,9 +269,8 @@ def items_clustering():
 
     hparams['clusters'] = list(range(4, 9))
     hparams['word_filtering'] = ['none', 'stopwords', 'len3']
-    hparams['vectors'] = ['bio', 50, 100, 200, 300]
-    hparams['method'] = ['kmeans']
-    hparams['sent_embedder'] = ['sent2vec', 'baseline']
+    hparams['vectors'] = ['bio_sent', 'bio', 50, 100, 200, 300]
+    hparams['method'] = ['kmeans', 'DBSCAN']
 
     all_configs = product(*[[(key, val) for val in vals]
                             for key, vals in hparams.items()])
