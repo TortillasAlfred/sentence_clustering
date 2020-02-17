@@ -175,8 +175,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
     plt.savefig(os.path.join(save_path, 'pca_clusters.png'))
     plt.close()
 
-    reduced_vectors = TSNE(n_components=2,
-                           n_jobs=-1).fit_transform(sentence_vectors)
+    reduced_vectors = TSNE(n_components=2).fit_transform(sentence_vectors)
 
     plt.figure()
     plt.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1], c=labels)
@@ -239,7 +238,7 @@ def domains_clustering():
     hparams['clusters'] = list(range(4, 9))
     hparams['word_filtering'] = ['none', 'stopwords', 'len3']
     hparams['vectors'] = ['bio_sent', 'bio', 50, 100, 200, 300]
-    hparams['method'] = ['kmeans', 'DBSCAN']
+    hparams['method'] = ['kmeans', 'DBSCAN', 'spectral']
 
     all_configs = product(*[[(key, val) for val in vals]
                             for key, vals in hparams.items()])
@@ -271,7 +270,7 @@ def items_clustering():
     hparams['clusters'] = list(range(4, 9))
     hparams['word_filtering'] = ['none', 'stopwords', 'len3']
     hparams['vectors'] = ['bio_sent', 'bio', 50, 100, 200, 300]
-    hparams['method'] = ['kmeans', 'DBSCAN']
+    hparams['method'] = ['kmeans', 'DBSCAN', 'spectral']
 
     all_configs = product(*[[(key, val) for val in vals]
                             for key, vals in hparams.items()])
