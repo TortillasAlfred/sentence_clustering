@@ -204,6 +204,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 def sentence_vectorize(vector_method, sents, vocab):
     if vector_method is 'bio_sent':
+        sents = [' '.join(sent) for sent in sents]
         return vocab.embed_sentences(sents)
     else:
         return sentence2vec(sents, vocab)
