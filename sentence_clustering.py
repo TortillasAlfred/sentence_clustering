@@ -152,7 +152,7 @@ def get_rows(sentences, sentence_vectors, labels):
     for label, vectors in class_vectors.items():
         vectors = np.asarray(vectors)
         center = np.mean(vectors, axis=0)
-        dists = cdist(vectors, np.expand_as(center, axis=0), metric='cosine')
+        dists = cdist(vectors, np.expand_dims(center, axis=0), metric='cosine')
         sorted_args = np.argsort(dists[:, 0])
         classes[label] = [
             class_sentences[label][idx][0] for idx in sorted_args
