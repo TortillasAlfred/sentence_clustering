@@ -21,7 +21,6 @@ from gensim.models.fasttext import load_facebook_model
 import sent2vec
 
 
-
 def load_all_csv_rows(file_path):
     with open(file_path, encoding='utf8') as csvfile:
         reader = csv.reader(csvfile)
@@ -106,7 +105,8 @@ def preprocess(sents, word_filtering, vectors):
         vocab = sent2vec.Sent2vecModel()
         vocab.load_model('/home/magod/scratch/embeddings/bio_sv.bin')
     elif vectors == 'bio_words':
-        bio_wv = Vectors(name='bio_wv.txt', cache='/home/magod/scratch/embeddings/')
+        bio_wv = Vectors(name='bio_wv.txt',
+                         cache='/home/magod/scratch/embeddings/')
         vocab = Vocab(vocab_counter, vectors=bio_wv, specials=[])
         vocab.vectors = vocab.vectors.numpy()
 
@@ -239,7 +239,7 @@ def domains_clustering():
     hparams['clusters'] = list(range(4, 9))
     hparams['word_filtering'] = ['none', 'stopwords', 'len3']
     hparams['vectors'] = ['bio_sent', 'bio_words', 50, 100, 200, 300]
-    hparams['method'] = ['kmeans', 'dbscan', 'spectral']
+    hparams['method'] = ['kmeans']
 
     all_configs = product(*[[(key, val) for val in vals]
                             for key, vals in hparams.items()])
@@ -271,7 +271,7 @@ def items_clustering():
     hparams['clusters'] = list(range(4, 9))
     hparams['word_filtering'] = ['none', 'stopwords', 'len3']
     hparams['vectors'] = ['bio_sent', 'bio_words', 50, 100, 200, 300]
-    hparams['method'] = ['kmeans', 'dbscan', 'spectral']
+    hparams['method'] = ['kmeans']
 
     all_configs = product(*[[(key, val) for val in vals]
                             for key, vals in hparams.items()])
