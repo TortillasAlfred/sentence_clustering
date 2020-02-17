@@ -245,7 +245,7 @@ def domains_clustering():
                             for key, vals in hparams.items()])
     all_configs = tqdm([OrderedDict(config) for config in all_configs])
 
-    results = Parallel(n_jobs=2, verbose=1)(
+    results = Parallel(n_jobs=1, verbose=1)(
         launch_from_config(config, results_dir, domains)
         for config in all_configs)
 
@@ -277,7 +277,7 @@ def items_clustering():
                             for key, vals in hparams.items()])
     all_configs = tqdm([OrderedDict(config) for config in all_configs])
 
-    results = Parallel(n_jobs=2, verbose=1)(
+    results = Parallel(n_jobs=1, verbose=1)(
         launch_from_config(config, results_dir, items)
         for config in all_configs)
 
