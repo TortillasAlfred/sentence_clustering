@@ -103,7 +103,7 @@ def preprocess(sents, word_filtering, vectors):
         #     )
     elif vectors is 'bio_sent':
         vocab = sent2vec.Sent2vecModel()
-        vocab.load('/home/magod/scratch/embeddings/bio_sv.bin')
+        vocab.load_model('/home/magod/scratch/embeddings/bio_sv.bin')
     elif vectors is 'bio_words':
         wv = Vectors(name='bio_wv.txt', cache='scratch/embeddings/')
         vocab = Vocab(vocab_counter, vectors=wv, specials=[])
