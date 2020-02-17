@@ -101,7 +101,7 @@ def preprocess(sents, word_filtering, vectors):
         #     raise ValueError(
         #         f'Some words were not found in the embeddings list ! They are \n\n{unk_words}\n'
         #     )
-    elif vectors is 'bio_sents':
+    elif vectors is 'bio_sent':
         vocab = sent2vec.Sent2vecModel()
         vocab.load('/home/magod/scratch/embeddings/bio_sv.bin')
     elif vectors is 'bio_words':
