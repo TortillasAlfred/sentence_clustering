@@ -70,8 +70,8 @@ def get_vocab_counter(sents, word_filtering):
     if word_filtering == 'none':
         filtering = lambda _: True
     elif word_filtering == 'stopwords':
-        stopwords = set(stopwords.words('english'))
-        filtering = lambda word: word not in stopwords
+        stop_words = set(stopwords.words('english'))
+        filtering = lambda word: word not in stop_words
     elif word_filtering == 'len3':
         filtering = lambda word: len(word) > 3
     else:
