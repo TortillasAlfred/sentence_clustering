@@ -237,7 +237,7 @@ def domains_clustering():
 
     hparams['clusters'] = list(range(4, 9))
     hparams['word_filtering'] = ['none', 'stopwords', 'len3']
-    hparams['vectors'] = ['bio_sent', 'bio', 50, 100, 200, 300]
+    hparams['vectors'] = ['bio_sent', 'bio_words', 50, 100, 200, 300]
     hparams['method'] = ['kmeans', 'dbscan', 'spectral']
 
     all_configs = product(*[[(key, val) for val in vals]
@@ -269,7 +269,7 @@ def items_clustering():
 
     hparams['clusters'] = list(range(4, 9))
     hparams['word_filtering'] = ['none', 'stopwords', 'len3']
-    hparams['vectors'] = ['bio_sent', 'bio', 50, 100, 200, 300]
+    hparams['vectors'] = ['bio_sent', 'bio_words', 50, 100, 200, 300]
     hparams['method'] = ['kmeans', 'dbscan', 'spectral']
 
     all_configs = product(*[[(key, val) for val in vals]
