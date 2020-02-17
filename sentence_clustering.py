@@ -65,12 +65,12 @@ def get_vocab_counter(sents, word_filtering):
     sents = [sent.lower() for sent in sents]
     sents = [sent.split() for sent in sents]
 
-    if word_filtering is 'none':
+    if word_filtering == 'none':
         filtering = lambda _: True
-    elif word_filtering is 'stopwords':
+    elif word_filtering == 'stopwords':
         stopwords = set(stopwords.words('english'))
         filtering = lambda word: word not in stopwords
-    elif word_filtering is 'len3':
+    elif word_filtering == 'len3':
         filtering = lambda word: len(word) > 3
     else:
         raise ValueError(f'Incorrect word filtering :{word_filtering}')
@@ -101,10 +101,10 @@ def preprocess(sents, word_filtering, vectors):
         #     raise ValueError(
         #         f'Some words were not found in the embeddings list ! They are \n\n{unk_words}\n'
         #     )
-    elif vectors is 'bio_sent':
+    elif vectors == 'bio_sent':
         vocab = sent2vec.Sent2vecModel()
         vocab.load_model('/home/magod/scratch/embeddings/bio_sv.bin')
-    elif vectors is 'bio_words':
+    elif vectors == 'bio_words':
         wv = Vectors(name='bio_wv.txt', cache='scratch/embeddings/')
         vocab = Vocab(vocab_counter, vectors=wv, specials=[])
         vocab.vectors = vocab.vectors.numpy()
@@ -202,7 +202,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 
 def sentence_vectorize(vector_method, sents, vocab):
-    if vector_method is 'bio_sent':
+    if vector_method == 'bio_sent':
         sents = [sent[0] for sent in sents]
         return vocab.embed_sentences(sents)
     else:
