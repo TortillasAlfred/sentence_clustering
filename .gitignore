@@ -5,3 +5,10 @@ __pycache__
 first_results
 results
 *.csv
+
+*.aux
+*_latexmk
+*.fls
+*.log
+*.synctex.gz
+*.tar.gz
