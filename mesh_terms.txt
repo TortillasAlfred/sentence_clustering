@@ -1,0 +1,64 @@
+mobilit*
+activity
+ambulation
+gait
+walk*
+lower limb
+lower extremity
+lower limb activity
+movement 
+sit to stand
+climb* stair*
+wheelchair
+movement
+driving
+turning around
+assistive devices
+transfer
+vestibular
+activities of daily living
+instrumental activities of daily living
+picking
+fine hand use
+endurance
+fatigue
+joint movement
+washing oneself
+caring for body parts
+toileting
+dressing
+eating
+drinking
+looking after one’s health
+preparing meals
+housework
+mental status
+memory
+speed of processing
+executive functioning
+visual attention
+depression
+anxiety
+fear
+safety
+education
+self-efficacy
+coping behaviors
+relationships 
+motivation
+well-being
+pain
+vision
+vestibular
+speech
+travel
+social
+communication
+weather 
+community mobile
+recreation
+leisure
+knowledge
+experience
+confidence
+work
