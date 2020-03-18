@@ -11,8 +11,8 @@ from Bio import Entrez
 N_IDS_PER_REQUEST = 100000000
 
 
-def collect_mesh(mesh_term, output_dir):
-    output_path = os.path.join(output_dir, f"{mesh_term}.pck")
+def collect_mesh(mesh_term, ids_dir):
+    output_path = os.path.join(ids_dir, f"{mesh_term}.pck")
 
     if os.path.isfile(output_path):
         return
@@ -54,10 +54,10 @@ def main(options):
 
     logging.info(f"The following mesh terms were retrieved {', '.join(mesh_terms)}")
 
-    os.makedirs(options.output_dir, exist_ok=True)
+    os.makedirs(options.ids_dir, exist_ok=True)
 
     for mesh_term in tqdm(mesh_terms, desc="Collecting ids by mesh terms..."):
-        collect_mesh(mesh_term, options.output_dir)
+        collect_mesh(mesh_term, options.ids_dir)
 
     logging.info("Done")
 
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     argument_parser.add_argument(
         "--mesh_terms_path", type=str, default="./mesh_terms.txt"
     )
-    argument_parser.add_argument("--output_dir", type=str, default="./mesh_ids/")
+    argument_parser.add_argument("--ids_dir", type=str, default="./mesh_ids/")
     argument_parser.add_argument(
         "--email", type=str, default="mathieu.godbout.3@ulaval.ca"
     )
