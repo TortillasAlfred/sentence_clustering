@@ -4,6 +4,7 @@ __pycache__
 .vscode
 first_results
 results
+mesh_ids
 *.csv
 
 *.aux
