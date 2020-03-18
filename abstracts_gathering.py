@@ -36,8 +36,34 @@ def collect_mesh(mesh_term, ids_dir):
 
         mesh_ids.extend(Entrez.read(handle)["IdList"])
 
+    mesh_ids = list(map(str, mesh_ids))
+
     with open(output_path, "wb") as f:
-        pickle.dump(mesh_ids, f)
+        pickle.dump(mesh_ids, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def regroup_ids(mesh_terms, ids_dir):
+    all_ids_dir = os.path.join(ids_dir, "all_ids.pck")
+
+    if os.path.isfile(all_ids_dir):
+        return
+
+    all_ids = []
+
+    for mesh_term in mesh_terms:
+        with open(os.path.join(ids_dir, f"{mesh_term}.pck"), "rb") as f:
+            all_ids.extend(pickle.load(f))
+
+    logging.info(f"A total of {len(all_ids)} ids were collected.")
+
+    all_ids = list(set(all_ids))
+
+    logging.info(f"After removing duplicates, {len(all_ids)} were left.")
+
+    logging.info(f"Writing all ids to {all_ids_dir}.")
+
+    with open(all_ids_dir, "wb") as f:
+        pickle.dump(all_ids, f)
 
 
 def main(options):
@@ -58,6 +84,8 @@ def main(options):
 
     for mesh_term in tqdm(mesh_terms, desc="Collecting ids by mesh terms..."):
         collect_mesh(mesh_term, options.ids_dir)
+
+    regroup_ids(mesh_terms, options.ids_dir)
 
     logging.info("Done")
 
