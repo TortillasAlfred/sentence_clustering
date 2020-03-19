@@ -10,7 +10,8 @@ import nltk
 from tqdm import tqdm
 from Bio import Entrez
 
-N_IDS_PER_FETCH_REQUEST = 10000
+N_IDS_PER_READ_REQUEST = 10000000
+N_IDS_PER_FETCH_REQUEST = 100
 
 
 def collect_mesh(mesh_term, ids_dir):
@@ -134,6 +135,68 @@ def read_abstracts_ids(texts_dir, ids):
             f.write(abstract)
 
 
+def preprocess_data(data):
+    abstracts = []
+
+    for article in data:
+        if "Abstract" not in article["MedlineCitation"]["Article"]:
+            continue
+
+        article_gists = article["MedlineCitation"]["Article"]["Abstract"][
+            "AbstractText"
+        ]
+
+        for gist in article_gists:
+            gist = str(gist).lower()
+            gist = unicodedata.normalize("NFKD", gist)
+            sents = []
+            for sent in nltk.sent_tokenize(gist):
+                # sents.append(" ".join(nltk.word_tokenize(sent)))
+                sents.append(sent)  # No tokenization yet
+            abstracts.extend(sents)
+
+    abstracts = "\n".join(abstracts)
+
+    return abstracts
+
+
+def process_mesh_term(mesh_term, texts_dir):
+    output_path = os.path.join(texts_dir, f"{mesh_term}.txt")
+
+    handle = Entrez.esearch(
+        db="pubmed",
+        term=mesh_term,
+        usehistory="y",
+        retmax=N_IDS_PER_READ_REQUEST,
+        rettype="json",
+    )
+    search_results = Entrez.read(handle)
+    handle.close()
+
+    count = int(search_results["Count"])
+    webenv = search_results["WebEnv"]
+    query_key = search_results["QueryKey"]
+
+    with open(output_path, "w") as output_file:
+        for start in tqdm(
+            list(range(0, count, N_IDS_PER_FETCH_REQUEST)), desc="Processing slices ..."
+        ):
+            end = min(count, start + N_IDS_PER_FETCH_REQUEST)
+            fetch_handle = Entrez.efetch(
+                db="pubmed",
+                retmode="xml",
+                retstart=start,
+                retmax=N_IDS_PER_FETCH_REQUEST,
+                webenv=webenv,
+                query_key=query_key,
+            )
+            data = Entrez.read(fetch_handle)["PubmedArticle"]
+            fetch_handle.close()
+            data = preprocess_data(data)
+
+            output_file.write(data)
+
+
 def main(options):
     configure_logging()
 
@@ -148,14 +211,10 @@ def main(options):
 
     logging.info(f"The following mesh terms were retrieved {', '.join(mesh_terms)}")
 
-    os.makedirs(options.ids_dir, exist_ok=True)
+    os.makedirs(options.texts_dir, exist_ok=True)
 
-    for mesh_term in tqdm(mesh_terms, desc="Collecting ids by mesh terms..."):
-        collect_mesh(mesh_term, options.ids_dir)
-
-    regroup_ids(mesh_terms, options.ids_dir)
-
-    read_abstracts(options.texts_dir, options.ids_dir)
+    for mesh_term in tqdm(mesh_terms, desc="Processing mesh terms..."):
+        process_mesh_term(mesh_term, options.texts_dir)
 
     logging.info("Done")
 
@@ -165,7 +224,6 @@ if __name__ == "__main__":
     argument_parser.add_argument(
         "--mesh_terms_path", type=str, default="./mesh_terms.txt"
     )
-    argument_parser.add_argument("--ids_dir", type=str, default="./mesh_ids/")
     argument_parser.add_argument("--texts_dir", type=str, default="./mesh_texts/")
     argument_parser.add_argument(
         "--email", type=str, default="mathieu.godbout.3@ulaval.ca"
