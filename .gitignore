@@ -5,6 +5,7 @@ __pycache__
 first_results
 results
 mesh_ids
+mesh_texts
 *.csv
 
 *.aux
