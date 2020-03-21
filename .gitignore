@@ -6,6 +6,7 @@ first_results
 results
 mesh_ids
 mesh_texts
+processed
 *.csv
 
 *.aux
