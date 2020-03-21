@@ -11,7 +11,7 @@ from tqdm import tqdm
 from Bio import Entrez
 
 N_IDS_PER_READ_REQUEST = 10000000
-N_IDS_PER_FETCH_REQUEST = 100
+N_IDS_PER_FETCH_REQUEST = 1000
 
 
 def collect_mesh(mesh_term, ids_dir):
@@ -163,6 +163,16 @@ def preprocess_data(data):
 def process_mesh_term(mesh_term, texts_dir):
     output_path = os.path.join(texts_dir, f"{mesh_term}.txt")
 
+    if os.path.isfile(output_path):
+        if mesh_term == "well-being":
+            begin = 1388
+            open_type = "a"
+        else:
+            return
+    else:
+        open_type = "w"
+        begin = 0
+
     handle = Entrez.esearch(
         db="pubmed",
         term=mesh_term,
@@ -177,9 +187,12 @@ def process_mesh_term(mesh_term, texts_dir):
     webenv = search_results["WebEnv"]
     query_key = search_results["QueryKey"]
 
-    with open(output_path, "w") as output_file:
+    with open(output_path, open_type) as output_file:
         for start in tqdm(
-            list(range(0, count, N_IDS_PER_FETCH_REQUEST)), desc="Processing slices ..."
+            list(
+                range(begin * N_IDS_PER_FETCH_REQUEST, count, N_IDS_PER_FETCH_REQUEST)
+            ),
+            desc=f"Processing slices for mesh term '{mesh_term}'...",
         ):
             end = min(count, start + N_IDS_PER_FETCH_REQUEST)
             fetch_handle = Entrez.efetch(
@@ -190,7 +203,7 @@ def process_mesh_term(mesh_term, texts_dir):
                 webenv=webenv,
                 query_key=query_key,
             )
-            data = Entrez.read(fetch_handle)["PubmedArticle"]
+            data = Entrez.read(fetch_handle, validate=False)["PubmedArticle"]
             fetch_handle.close()
             data = preprocess_data(data)
 
