@@ -6,7 +6,6 @@ walk*
 lower limb
 lower extremity
 lower limb activity
-movement 
 sit to stand
 climb* stair*
 wheelchair
