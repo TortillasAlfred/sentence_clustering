@@ -17,8 +17,6 @@ from tqdm import tqdm
 import numpy as np
 from scipy.spatial.distance import cdist
 from joblib import Parallel, delayed
-from gensim.models.fasttext import load_facebook_model
-import sent2vec
 from sentence_transformers import SentenceTransformer
 
 bert_model = SentenceTransformer("bert-base-nli-mean-tokens", device="cpu")
