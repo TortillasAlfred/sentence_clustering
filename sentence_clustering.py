@@ -21,9 +21,8 @@ from gensim.models.fasttext import load_facebook_model
 import sent2vec
 from sentence_transformers import SentenceTransformer
 
+bert_model = SentenceTransformer("bert-base-nli-mean-tokens", device="cpu")
 
-
-bert_model = SentenceTransformer("bert-base-nli-mean-tokens")
 
 def load_all_csv_rows(file_path):
     with open(file_path, encoding="utf8") as csvfile:
@@ -215,7 +214,7 @@ def get_hparams():
 
     hparams["clusters"] = list(range(4, 9))
     hparams["word_filtering"] = ["none", "stopwords", "len3"]
-    hparams["vectors"] = ["bert", "custom", 50, 100, 200, 300]
+    hparams["vectors"] = ["bert", 50, 100, 200, 300]
     hparams["method"] = ["kmeans"]
 
     return hparams
