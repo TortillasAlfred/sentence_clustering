@@ -141,7 +141,7 @@ def sentence2vec(sentences, vocab, sent_embeddings=None, token_embeddings=None):
                 sentence_list.append(Sentence(word_list))
 
         # apply single sentence word embedding
-        embedding_size = token_embeddings.shape[-1]
+        embedding_size = token_embeddings[0].shape[-1]
 
         sentence_vectors = sentence_to_vec(
             sentence_list, embedding_size, vocab
