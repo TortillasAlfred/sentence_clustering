@@ -64,9 +64,10 @@ def get_word_frequency(word_text):
 # Princeton University
 # convert a list of sentence with word2vec items into a set of sentence vectors
 def sentence_to_vec(
-    sentence_list: List[Sentence], embedding_size: int, vocab, a: float = 1e-3
+    sentence_list: List[Sentence], embedding_size: int, vocab, a: float = 1e-3,
 ):
     num_tokens = sum(vocab.freqs.values())
+
     freqs = defaultdict(lambda _: 1)
     freqs.update(vocab.freqs)
 
@@ -106,19 +107,45 @@ def sentence_to_vec(
     return sentence_vecs
 
 
-def sentence2vec(sentences, vocab, sent_embeddings=None):
+def sentence2vec(sentences, vocab, sent_embeddings=None, token_embeddings=None):
     if sent_embeddings:
+        sent_embeddings = np.array(sent_embeddings)
+        embedding_size = sent_embeddings.shape[1]
+
+        pca = PCA()
+        pca.fit(np.array(sent_embeddings))
+        u = pca.components_[0]  # the PCA vector
+        u = np.multiply(u, np.transpose(u))  # u x uT
+
+        # pad the vector?  (occurs if we have less sentences than embeddings_size)
+        if len(u) < embedding_size:
+            for i in range(embedding_size - len(u)):
+                # add needed extension for multiplication below
+                u = np.append(u, 0)
+
+        # resulting sentence vectors, vs = vs -u x uT x vs
+        sentence_vectors = []
+        for sent in sent_embeddings:
+            sub = np.multiply(u, sent)
+            sentence_vectors.append(np.subtract(sent, sub))
+    elif token_embeddings:
+        token_embeddings = np.array(token_embeddings)
+
         # convert the above sentences to vectors using spacy's large model vectors
         sentence_list = []
-        for sentence, sent_embs in zip(sentences, sent_embeddings):
+        for sentence, sent_tokens in zip(sentences, token_embeddings):
             word_list = []
-            for word, word_emb in zip(sentence[1], sent_embs):
-                word_list.append(Word(word, word_emb))
+            for word, emb in zip(sentence[1], sent_tokens):
+                word_list.append(Word(word, emb))
             if len(word_list) > 0:  # did we find any words (not an empty set)
                 sentence_list.append(Sentence(word_list))
 
         # apply single sentence word embedding
-        embedding_size = sent_embeddings.shape[1]
+        embedding_size = token_embeddings.shape[-1]
+
+        sentence_vectors = sentence_to_vec(
+            sentence_list, embedding_size, vocab
+        )  # all vectors converted together
     else:
         # convert the above sentences to vectors using spacy's large model vectors
         sentence_list = []

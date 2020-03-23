@@ -8,7 +8,7 @@ import pickle
 import shutil
 from sentence2vec import sentence2vec
 from copy import deepcopy
-from sklearn.cluster import KMeans, SpectralClustering, DBSCAN
+from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.metrics import silhouette_score
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -19,7 +19,7 @@ from scipy.spatial.distance import cdist
 from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
 
-bert_model = SentenceTransformer("bert-base-nli-mean-tokens", device="cpu")
+bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
 
 
 def load_all_csv_rows(file_path):
@@ -95,7 +95,7 @@ def preprocess(sents, word_filtering, vectors):
             specials=[],
         )
         vocab.vectors = vocab.vectors.numpy()
-    elif vectors in ["bert", "custom"]:
+    else:
         vocab = Vocab(vocab_counter, vectors=None, specials=[],)
 
     return vocab, sents
@@ -184,9 +184,17 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 
 def sentence_vectorize(vector_method, sents, vocab):
-    if vector_method == "bert":
+    if vector_method == "bert_sent":
         sentence_embeddings = bert_model.encode([s[0] for s in sents])
         return sentence_embeddings
+    elif vector_method == "bert_sent_pca":
+        sentence_embeddings = bert_model.encode([s[0] for s in sents])
+        return sentence2vec(sents, vocab, sentence_embeddings=sentence_embeddings)
+    elif vector_method == "bert_word":
+        token_embeddings = bert_model.encode(
+            [s[0] for s in sents], output_value="token_embeddings"
+        )
+        return sentence2vec(sents, vocab, token_embeddings=token_embeddings)
     else:
         return sentence2vec(sents, vocab)
 
@@ -212,7 +220,7 @@ def get_hparams():
 
     hparams["clusters"] = list(range(4, 9))
     hparams["word_filtering"] = ["none", "stopwords", "len3"]
-    hparams["vectors"] = ["bert", 50, 100, 200, 300]
+    hparams["vectors"] = ["bert_word", "bert_sent_pca", "bert_sent", 50, 100, 200, 300]
     hparams["method"] = ["kmeans"]
 
     return hparams
@@ -231,7 +239,10 @@ def domains_clustering():
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]
     )
-    all_configs = tqdm([OrderedDict(config) for config in all_configs])
+    all_configs = tqdm(
+        [OrderedDict(config) for config in all_configs],
+        desc="Processing configs for domains",
+    )
 
     results = Parallel(n_jobs=-1, verbose=1)(
         launch_from_config(config, results_dir, domains) for config in all_configs
@@ -259,7 +270,10 @@ def items_clustering():
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]
     )
-    all_configs = tqdm([OrderedDict(config) for config in all_configs])
+    all_configs = tqdm(
+        [OrderedDict(config) for config in all_configs],
+        desc="Processing configs for items",
+    )
 
     results = Parallel(n_jobs=-1, verbose=1)(
         launch_from_config(config, results_dir, items) for config in all_configs
