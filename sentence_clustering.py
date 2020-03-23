@@ -189,7 +189,7 @@ def sentence_vectorize(vector_method, sents, vocab):
         return sentence_embeddings
     elif vector_method == "bert_sent_pca":
         sentence_embeddings = bert_model.encode([s[0] for s in sents])
-        return sentence2vec(sents, vocab, sentence_embeddings=sentence_embeddings)
+        return sentence2vec(sents, vocab, sent_embeddings=sentence_embeddings)
     elif vector_method == "bert_word":
         token_embeddings = bert_model.encode(
             [s[0] for s in sents], output_value="token_embeddings"
