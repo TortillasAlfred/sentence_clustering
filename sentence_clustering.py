@@ -19,7 +19,11 @@ from scipy.spatial.distance import cdist
 from joblib import Parallel, delayed
 from gensim.models.fasttext import load_facebook_model
 import sent2vec
+from sentence_transformers import SentenceTransformer
 
+
+
+bert_model = SentenceTransformer("bert-base-nli-mean-tokens")
 
 def load_all_csv_rows(file_path):
     with open(file_path, encoding="utf8") as csvfile:
@@ -94,22 +98,8 @@ def preprocess(sents, word_filtering, vectors):
             specials=[],
         )
         vocab.vectors = vocab.vectors.numpy()
-
-        # unk_idx = np.nonzero(
-        #     vocab.vectors.max(axis=1) == vocab.vectors.min(axis=1))[0]
-
-        # if len(unk_idx) > 0:
-        #     unk_words = [vocab.itos[idx] for idx in unk_idx]
-        #     raise ValueError(
-        #         f'Some words were not found in the embeddings list ! They are \n\n{unk_words}\n'
-        #     )
-    elif vectors == "bio_sent":
-        vocab = sent2vec.Sent2vecModel()
-        vocab.load_model("/home/magod/scratch/embeddings/bio_sv.bin")
-    elif vectors == "bio_words":
-        bio_wv = Vectors(name="bio_wv.txt", cache="/home/magod/scratch/embeddings/")
-        vocab = Vocab(vocab_counter, vectors=bio_wv, specials=[])
-        vocab.vectors = vocab.vectors.numpy()
+    elif vectors in ["bert", "custom"]:
+        vocab = Vocab(vocab_counter, vectors=None, specials=[],)
 
     return vocab, sents
 
@@ -197,9 +187,9 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 
 def sentence_vectorize(vector_method, sents, vocab):
-    if vector_method == "bio_sent":
-        sents = [sent[0] for sent in sents]
-        return vocab.embed_sentences(sents)
+    if vector_method == "bert":
+        sentence_embeddings = bert_model.encode([s[0] for s in sents])
+        return sentence_embeddings
     else:
         return sentence2vec(sents, vocab)
 

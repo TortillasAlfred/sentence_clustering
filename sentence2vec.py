@@ -16,6 +16,7 @@
 #  limitations under the License.
 
 import numpy as np
+from collections import defaultdict
 from sklearn.decomposition import PCA
 from typing import List
 
@@ -29,7 +30,7 @@ class Word:
         self.vector = vector
 
     def __str__(self):
-        return self.text + ' : ' + str(self.vector)
+        return self.text + " : " + str(self.vector)
 
     def __repr__(self):
         return self.__str__()
@@ -46,7 +47,7 @@ class Sentence:
 
     def __str__(self):
         word_str_list = [word.text for word in self.word_list]
-        return ' '.join(word_str_list)
+        return " ".join(word_str_list)
 
     def __repr__(self):
         return self.__str__()
@@ -62,11 +63,12 @@ def get_word_frequency(word_text):
 # Sanjeev Arora, Yingyu Liang, Tengyu Ma
 # Princeton University
 # convert a list of sentence with word2vec items into a set of sentence vectors
-def sentence_to_vec(sentence_list: List[Sentence],
-                    embedding_size: int,
-                    vocab,
-                    a: float = 1e-3):
+def sentence_to_vec(
+    sentence_list: List[Sentence], embedding_size: int, vocab, a: float = 1e-3
+):
     num_tokens = sum(vocab.freqs.values())
+    freqs = defaultdict(lambda _: 1)
+    freqs.update(vocab.freqs)
 
     sentence_set = []
     for sentence in sentence_list:
@@ -75,7 +77,7 @@ def sentence_to_vec(sentence_list: List[Sentence],
         sentence_length = sentence.len()
         for word in sentence.word_list:
             # smooth inverse frequency, SIF
-            a_value = a / (a + vocab.freqs[word.text] / num_tokens)
+            a_value = a / (a + freqs[word.text] / num_tokens)
             # vs += sif * word_vector
             vs = np.add(vs, np.multiply(a_value, word.vector))
 
@@ -104,19 +106,34 @@ def sentence_to_vec(sentence_list: List[Sentence],
     return sentence_vecs
 
 
-def sentence2vec(sentences, vocab):
-    # convert the above sentences to vectors using spacy's large model vectors
-    sentence_list = []
-    for sentence in sentences:
-        word_list = []
-        for word in sentence[1]:
-            word_list.append(Word(word, vocab.vectors[vocab.stoi[word]]))
-        if len(word_list) > 0:  # did we find any words (not an empty set)
-            sentence_list.append(Sentence(word_list))
+def sentence2vec(sentences, vocab, sent_embeddings=None):
+    if sent_embeddings:
+        # convert the above sentences to vectors using spacy's large model vectors
+        sentence_list = []
+        for sentence, sent_embs in zip(sentences, sent_embeddings):
+            word_list = []
+            for word, word_emb in zip(sentence[1], sent_embs):
+                word_list.append(Word(word, word_emb))
+            if len(word_list) > 0:  # did we find any words (not an empty set)
+                sentence_list.append(Sentence(word_list))
 
-    # apply single sentence word embedding
-    embedding_size = vocab.vectors.shape[1]
-    sentence_vectors = sentence_to_vec(sentence_list, embedding_size,
-                                       vocab)  # all vectors converted together
+        # apply single sentence word embedding
+        embedding_size = sent_embeddings.shape[1]
+    else:
+        # convert the above sentences to vectors using spacy's large model vectors
+        sentence_list = []
+        for sentence in sentences:
+            word_list = []
+            for word in sentence[1]:
+                word_list.append(Word(word, vocab.vectors[vocab.stoi[word]]))
+            if len(word_list) > 0:  # did we find any words (not an empty set)
+                sentence_list.append(Sentence(word_list))
+
+        # apply single sentence word embedding
+        embedding_size = vocab.vectors.shape[1]
+
+        sentence_vectors = sentence_to_vec(
+            sentence_list, embedding_size, vocab
+        )  # all vectors converted together
 
     return sentence_vectors
