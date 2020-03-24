@@ -20,11 +20,6 @@ from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
 import fasttext
 
-bert_model = SentenceTransformer("bert-base-nli-mean-tokens", device="cpu")
-custom_model = fasttext.load_model(
-    "/scratch/magod/mobility_abstracts/fasttext_model.bin"
-)
-
 
 def load_all_csv_rows(file_path):
     with open(file_path, encoding="utf8") as csvfile:
@@ -194,17 +189,23 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 def sentence_vectorize(vector_method, sents, vocab):
     if vector_method == "bert_sent":
+        bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
         sentence_embeddings = bert_model.encode([s[0] for s in sents])
         return sentence_embeddings
     elif vector_method == "bert_sent_pca":
+        bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
         sentence_embeddings = bert_model.encode([s[0] for s in sents])
         return sentence2vec(sents, vocab, sent_embeddings=sentence_embeddings)
     elif vector_method == "bert_word":
+        bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
         token_embeddings = bert_model.encode(
             [s[0] for s in sents], output_value="token_embeddings"
         )
         return sentence2vec(sents, vocab, token_embeddings=token_embeddings)
     elif vector_method == "custom":
+        custom_model = fasttext.load_model(
+            "/scratch/magod/mobility_abstracts/fasttext_model.bin"
+        )
         token_embeddings = [
             [custom_model.get_word_vector(w) for w in s[1]] for s in sents
         ]
