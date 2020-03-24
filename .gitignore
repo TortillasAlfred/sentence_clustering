@@ -8,6 +8,7 @@ mesh_ids
 mesh_texts
 processed
 bert_results
+final_results
 *.csv
 
 *.aux
