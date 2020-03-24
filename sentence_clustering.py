@@ -20,7 +20,7 @@ from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
 import fasttext
 
-bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
+bert_model = SentenceTransformer("bert-base-nli-mean-tokens", device="cpu")
 custom_model = fasttext.load_model(
     "/scratch/magod/mobility_abstracts/fasttext_model.bin"
 )
@@ -107,13 +107,18 @@ def preprocess(sents, word_filtering, vectors):
 
 def get_clustering_obj(method, clusters):
     if method == "kmeans":
-        return KMeans(n_clusters=clusters, random_state=42, n_init=20, n_jobs=-1)
+        return KMeans(
+            n_clusters=clusters,
+            random_state=42,
+            n_init=20,
+            n_jobs=-1,
+            max_iter=1000,
+            tol=1e-5,
+        )
     elif method == "spectral":
         return SpectralClustering(
             n_clusters=clusters, random_state=42, n_init=20, n_jobs=-1
         )
-    elif method == "dbscan":
-        return DBSCAN(eps=2.0 / (clusters - 3), n_jobs=-1)
     else:
         raise ValueError("Unknown clustering method")
 
@@ -208,12 +213,20 @@ def sentence_vectorize(vector_method, sents, vocab):
         return sentence2vec(sents, vocab)
 
 
+def apply_pca(sent_embeddings, pca_dim):
+    if pca_dim:
+        return PCA(n_components=pca_dim).fit_transform(sent_embeddings)
+    else:
+        return sent_embeddings
+
+
 @delayed
 def launch_from_config(config, base_path, sents):
     save_path = create_folder_for_config(config, base_path)
 
     vocab, sents = preprocess(sents, config["word_filtering"], config["vectors"])
     sent_embeddings = sentence_vectorize(config["vectors"], sents, vocab)
+    sent_embeddings = apply_pca(sent_embeddings, config["pca_dim"])
 
     score, labels = run_clustering(
         config["method"], config["clusters"], sents, sent_embeddings, base_path
@@ -230,15 +243,16 @@ def get_hparams():
     hparams["clusters"] = list(range(4, 9))
     hparams["word_filtering"] = ["none", "stopwords", "len3"]
     hparams["vectors"] = [
-        "bert_word",
-        "custom",
         "bert_sent_pca",
-        "bert_sent",
+        "custom",
         50,
+        "bert_word",
         100,
+        "bert_sent",
         200,
         300,
     ]
+    hparams["pca_dim"] = [2, 5, 10, 25, None]
     hparams["method"] = ["kmeans"]
 
     return hparams
