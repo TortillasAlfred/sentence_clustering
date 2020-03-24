@@ -18,8 +18,12 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
+import fasttext
 
 bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
+custom_model = fasttext.load_model(
+    "/scratch/magod/mobility_abstracts/fasttext_model.bin"
+)
 
 
 def load_all_csv_rows(file_path):
@@ -195,6 +199,11 @@ def sentence_vectorize(vector_method, sents, vocab):
             [s[0] for s in sents], output_value="token_embeddings"
         )
         return sentence2vec(sents, vocab, token_embeddings=token_embeddings)
+    elif vector_method == "custom":
+        token_embeddings = [
+            [custom_model.get_word_vector(w) for w in s[1]] for s in sents
+        ]
+        return sentence2vec(sents, vocab, token_embeddings=token_embeddings)
     else:
         return sentence2vec(sents, vocab)
 
@@ -220,7 +229,16 @@ def get_hparams():
 
     hparams["clusters"] = list(range(4, 9))
     hparams["word_filtering"] = ["none", "stopwords", "len3"]
-    hparams["vectors"] = ["bert_word", "bert_sent_pca", "bert_sent", 50, 100, 200, 300]
+    hparams["vectors"] = [
+        "bert_word",
+        "custom",
+        "bert_sent_pca",
+        "bert_sent",
+        50,
+        100,
+        200,
+        300,
+    ]
     hparams["method"] = ["kmeans"]
 
     return hparams
