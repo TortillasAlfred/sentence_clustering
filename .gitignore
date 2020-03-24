@@ -16,3 +16,4 @@ bert_results
 *.log
 *.synctex.gz
 *.tar.gz
+*.bin
