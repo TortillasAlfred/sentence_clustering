@@ -17,7 +17,7 @@ def main(options):
     model = fasttext.train_unsupervised(options.source_file, thread=options.n_threads)
 
     # Save
-    model.save(options.save_path)
+    model.save_model(options.save_path)
 
 
 if __name__ == "__main__":
