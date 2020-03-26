@@ -240,17 +240,29 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 def sentence_vectorize(vector_method, sents, vocab):
     if vector_method == "bert_sent":
-        bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
-        sentence_embeddings = bert_model.encode([s[0] for s in sents])
+        bert_model = SentenceTransformer(
+            "distilbert-base-nli-mean-tokens", device="cpu"
+        )
+        sentence_embeddings = bert_model.encode(
+            [s[0] for s in sents], show_progress_bar=False
+        )
         return sentence_embeddings
     elif vector_method == "bert_sent_pca":
-        bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
-        sentence_embeddings = bert_model.encode([s[0] for s in sents])
+        bert_model = SentenceTransformer(
+            "distilbert-base-nli-mean-tokens", device="cpu"
+        )
+        sentence_embeddings = bert_model.encode(
+            [s[0] for s in sents], show_progress_bar=False
+        )
         return sentence2vec(sents, vocab, sent_embeddings=sentence_embeddings)
     elif vector_method == "bert_word":
-        bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
+        bert_model = SentenceTransformer(
+            "distilbert-base-nli-mean-tokens", device="cpu"
+        )
         token_embeddings = bert_model.encode(
-            [s[0] for s in sents], output_value="token_embeddings"
+            [s[0] for s in sents],
+            output_value="token_embeddings",
+            show_progress_bar=False,
         )
         return sentence2vec(sents, vocab, token_embeddings=token_embeddings)
     elif vector_method == "custom":
@@ -292,19 +304,15 @@ def launch_from_config(config, base_path, sents):
 def get_hparams():
     hparams = OrderedDict()
 
-    hparams["clusters"] = list(range(4, 9))
-    hparams["word_filtering"] = ["none", "stopwords", "len3"]
+    hparams["clusters"] = list(range(4, 16))
+    hparams["word_filtering"] = ["none"]
     hparams["vectors"] = [
         "bert_sent_pca",
-        "custom",
-        50,
-        "bert_word",
-        100,
         "bert_sent",
-        200,
-        300,
+        "bert_word",
+        "custom",
     ]
-    hparams["pca_dim"] = [2, 5, 10, 25, None]
+    hparams["pca_dim"] = [2, 5, 10]
     hparams["method"] = ["kmeans"]
 
     return hparams
