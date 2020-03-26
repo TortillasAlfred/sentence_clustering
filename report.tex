@@ -1,11 +1,11 @@
 \documentclass{article}
-    % General document formatting
-    \usepackage[margin=0.7in]{geometry}
-    \usepackage[parfill]{parskip}
-    \usepackage[utf8]{inputenc}
-    
-    % Related to math
-    \usepackage{amsmath,amssymb,amsfonts,amsthm}
+% General document formatting
+\usepackage[margin=0.7in]{geometry}
+\usepackage[parfill]{parskip}
+\usepackage[utf8]{inputenc}
+
+% Related to math
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
 
 \title{Sentence clustering}
 \date{}
@@ -14,26 +14,54 @@
 
 \maketitle
 
+\section*{Pertinence of Natural Language Processing method}
+
+When aiming at groups words and/or sentences, many approaches can be considered, including the
+manual one where a human simply reads out all the said words or sentences and groups them
+according to its own interpretation of what good groupings might be. In the case of a large number
+of items or long sentences, this method is hardly feasible. Instead, automatic approaches
+like the Natural Language Processing (NLP) ones seem more natural with their proposed computed
+solutions.
+
+Beyond its automatic nature and quickness, the NLP method also has the advantage of
+being able to classify future words or sentences to the best computed grouping on previous
+words or sentences.
+
+An important flaw of the NLP approach is that there is no automatic metric describing what
+a good grouping is or is not. For instance, most NLP methods generate vectorial representations
+of words based only on which words they are most often seen with. While this is pertinent, it
+lacks the presence of semantic or contextualized information for words whose meaning changes
+drastically depending on the context. As will be detailed below, this can lead to sentence
+encodings focusing more on syntactic content of a sentence like the presence of a negative tone
+rather than the actual subject of the sentence, on which we would most likely prefer to base 
+our clustering.
+
+
 \section*{Experiment settings}
 
-For each item and domain in the mobility datasets, we first apply a \textbf{word filtering}, 
-followed by a \textbf{embedding mapping} of word groups to vectors which we then feed 
-directly into a $k$-means clustering algorithm with a predefined target \textbf{number of
-clusters}. All bold values are settings for which we explored different configurations.
-We describe them all further below.
+For each item and domain in the mobility datasets, we first apply a \textbf{word filtering},
+followed by a \textbf{embedding mapping} of word groups to vectors. A \textbf{dimensionality reduction}
+is then applied on the resulting vectors which we finally feed to a $k$-means clustering algorithm with
+a predefined target \textbf{number of clusters}. All bold values are settings for which we explored
+different configurations. We describe them all further below.
 
-A first setting considered was to filter some words hypothesized 
+A first setting considered was to filter some words hypothesized
 to only add noise to the word groups. The different filters considered are (1) the absence
 of filter, (2) filtering all words with less than 4 letters and (3) filtering words contained
 in a stop-words public dictionary.
 
-From a filtered word group we now needed to extract vectorial representations. This is done 
-by using publicly available word-level vectorial mappings. The word-level mappings used 
-are GLoVe with 50, 100, 200 and 300 dimensional embeddings. We also experimented with 
-bio-medical vectorial embeddings, trained specifically on biomedical data. For those
-mappings, both word-level and sentence-level vectorial mappings are available and explored.
+From a filtered word group we now needed to extract vectorial representations. This is done
+by using publicly available word-level vectorial mappings. The word-level mappings used
+are GLoVe with 50, 100, 200 and 300 dimensional embeddings. We also experimented with
+the sate-of-the-art BERT model, both on word and sentence-level encodings. Lastly, we
+collected a total of 15 mobility-related articles, on which we trained our own FastText
+embeddings.
 
-For the number of clusters to look for by our algorithm, we used values ranging from 4 to 8 
+The dimensional reduction portion of the approach uses a Principal Component Analysis
+decomposition of the original sentence embeddings. The output dimensions explored are {2, 5, 10, 25}
+and keeping the raw embeddings.
+
+For the number of clusters to look for by our algorithm, we used values ranging from 4 to 8
 included.
 
 
@@ -43,15 +71,45 @@ Results are given in the form of a .csv file containing items and domains groupe
 The clusters are listed in order of proximity to their respective clusters, meaning that
 the top word groups of each column should be strong indicators of their clusters' contents.
 
-For the items clustering, the best found configuration was to use no word filtering, 50d
-GLoVe embeddings with 4 clusters. The cluster sizes are (87, 88, 302, 1083). While the 
-clusters are heavily imbalanced, each cluster is clearly centered around a separate theme.
+The best results were all obtained by the BERT model, wether via sentence-level or word-level
+encoding. Obtained clusters appear much better than on the first iteration, with cluster sizes
+much more similar and cluster headers more descriptive of their cluster's content.
 
-For the domains clustering, the best found configuration was to use no word filtering, 50d
-GLoVe embeddings with 4 clusters. The cluster sizes are (10, 11, 22, 87). Once again they
-are very imbalanced but inter-cluster correlation is strong.
+For both the domains and items clustering we present the few best results our approach
+yielded according to our own human interpretation. For all retained configurations, we include
+\begin{itemize}
+    \item a \texttt{clusters.csv} file, containing the proposed groupings;
+    \item a \texttt{config.txt} file, detailing which configuration was used;
+    \item \texttt{pca\_clusters.png} and \texttt{tsne\_clusters.png} images, presenting 2 dimensional
+          views of the used sentence embeddings.
+\end{itemize}
 
-Lastly, we also give a 2d representation of the obtained clusters obtained
-through PCA dimensionality reduction for both the items and domains.
+We first note the very significant difference in sentence embeddings dispersion (shown in the
+\texttt{png} images) when using the BERT model in comparison with the previous iteration. The
+embeddings are much less grouped, allowing the clustering algorithm to more efficiently retrieve
+good groupings.
+
+Moreover, we denote a much improved tightness of each cluster. This is particularly clear in
+the domains clusters, where the column headers can almost directly be used as cluster tag.
+
+For the items clustering, the results are harder to grasp, mainly due to the very high number
+of sentences. The cluster sizes are in a satisfyingly similar range. The resulting
+clusters are however more difficult to analyze. Most clusters appear more linked on the
+syntactic similarity than semantic. For instance, in the 7 clusters retained grouping, the
+seventh cluster clearly contains all the sentences where the group 'how often' is present,
+no matter what the rest of the sentence might be about. A similar problem also arises
+with a cluster being focused on the presence of negation in the sentence.
+
+\section*{Possible upgrades}
+
+We consider the domains clustering mostly done, with results satisfying enough to keep as is.
+
+Regarding the items clustering task, we might consider another word filtering method: frequent
+word groups removal. We could automatically identify word groups that are often present and
+should not be used to group sentence together like \textit{'how often do you'} or \textit{'not at all'}. For instance,
+we could take the sentence \textit{'how often do you go to parties'} and only use the
+\textit{'go to parties'} part for the sentence embeddings. The effort to implement this
+particular upgrade would be in the analysis and collection of the said often seen and useless
+word groups.
 
 \end{document}

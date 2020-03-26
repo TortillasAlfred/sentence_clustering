@@ -19,6 +19,7 @@ from scipy.spatial.distance import cdist
 from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
 import fasttext
+import re
 
 
 def load_all_csv_rows(file_path):
@@ -62,22 +63,72 @@ def get_vocab_counter(sents, word_filtering):
     sents = [sent.replace(".", " . ") for sent in sents]
     sents = [sent.replace("'", " ' ") for sent in sents]
     sents = [sent.lower() for sent in sents]
-    sents = [sent.split() for sent in sents]
 
     if word_filtering == "none":
+        sents = [sent.split() for sent in sents]
         filtering = lambda _: True
+        sents = [list(filter(filtering, sent)) for sent in sents]
+        sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
     elif word_filtering == "stopwords":
         from nltk.corpus import stopwords
 
+        sents = [sent.split() for sent in sents]
         stop_words = set(stopwords.words("english"))
         filtering = lambda word: word not in stop_words
+        sents = [list(filter(filtering, sent)) for sent in sents]
+        sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
     elif word_filtering == "len3":
         filtering = lambda word: len(word) > 3
+        sents = [sent.split() for sent in sents]
+        sents = [list(filter(filtering, sent)) for sent in sents]
+        sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
+    elif word_filtering == "word_groups":
+        with open("group_words_to_remove.txt", "r") as f:
+            words_to_remove = f.read().splitlines()
+            words_to_remove = set(words_to_remove)
+            words_to_remove = [group.split() for group in words_to_remove]
+
+        regex = re.compile(r"( (?:no|yes|not|grade) .*)")
+
+        def process_sent(sents):
+            raw_sent, sent = sents
+            sent = regex.sub("", sent)
+
+            def present_group(group, sent):
+                def present_at_idx(group, sent, sent_idx):
+                    for group_idx in range(len(group)):
+                        if (
+                            sent_idx + group_idx >= len(sent)
+                            or sent[sent_idx + group_idx] != group[group_idx]
+                        ):
+                            return False
+
+                    return True
+
+                for sent_idx in range(len(sent)):
+                    if present_at_idx(group, sent, sent_idx):
+                        return True
+
+                return False
+
+            sent = sent.split()
+            present_groups = [
+                group for group in words_to_remove if present_group(group, sent)
+            ]
+            words = list(set([w for group in present_groups for w in group]))
+
+            sent = [w for w in sent if w not in words]
+
+            if len(sent) > 0:
+                return (raw_sent, sent)
+            else:
+                return None
+
+        sents = map(process_sent, zip(raw_sents, sents))
+        sents = list(filter(None, sents))
     else:
         raise ValueError(f"Incorrect word filtering :{word_filtering}")
 
-    sents = [list(filter(filtering, sent)) for sent in sents]
-    sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
     words = [word for sent in sents for word in sent[1]]
 
     return Counter(words), sents
@@ -299,6 +350,7 @@ def items_clustering():
 
     results = OrderedDict()
     hparams = get_hparams()
+    hparams["word_filtering"] = ["word_groups"] + hparams["word_filtering"]
 
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]
