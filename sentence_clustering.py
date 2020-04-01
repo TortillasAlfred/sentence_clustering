@@ -79,12 +79,15 @@ def get_vocab_counter(sents, word_filtering):
     if word_filtering == "none":
         sents = [sent.split() for sent in sents]
         sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
-    elif word_filtering == "automatic_filtering":
+    elif "automatic_filtering" in word_filtering:
+        filter_freq = int(word_filtering.split("_")[-1])
         sents = [sent.split() for sent in sents]
         words = [word for sent in sents for word in sent]
 
         vocab = Counter(words)
-        words_too_frequent = set([word for word, freq in vocab.items() if freq > 10])
+        words_too_frequent = set(
+            [word for word, freq in vocab.items() if freq > filter_freq]
+        )
 
         must_keep_terms = icf_terms()
 
@@ -483,9 +486,12 @@ def items_clustering():
 
     results = OrderedDict()
     hparams = get_hparams()
-    hparams["word_filtering"] = ["automatic_filtering", "word_groups"] + hparams[
-        "word_filtering"
-    ]
+    hparams["word_filtering"] = [
+        "automatic_filtering_5",
+        "automatic_filtering_10",
+        "automatic_filtering_20",
+        "word_groups",
+    ] + hparams["word_filtering"]
 
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]
@@ -511,7 +517,7 @@ def items_clustering():
 if __name__ == "__main__":
     import logging
 
-    logging.disable(logging.CRITICAL) # Mute SentenceTransformers
+    logging.disable(logging.CRITICAL)  # Mute SentenceTransformers
 
     items_clustering()
     domains_clustering()
