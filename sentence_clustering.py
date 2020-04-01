@@ -303,7 +303,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
         plt.title(f"Cluster_{i}")
         if "domains" in save_path:
             labels = [w[:10] for w in labels]
-            plt.xticks(range(len(labels)), labels)
+            plt.xticks(range(len(labels)), labels, rotation='vertical')
         else:
             plt.xticks([])
         plt.savefig(os.path.join(save_path, f"cluster_{i}_distances.png"))
@@ -519,5 +519,5 @@ if __name__ == "__main__":
 
     logging.disable(logging.CRITICAL)  # Mute SentenceTransformers
 
-    items_clustering()
+    # items_clustering()
     domains_clustering()
