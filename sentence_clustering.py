@@ -22,6 +22,18 @@ import fasttext
 import re
 
 
+def icf_terms():
+    with open("./icf_terms.txt", "r") as f:
+        data = f.read().splitlines()
+
+    icf_dict = defaultdict(set)
+
+    for d in data:
+        icf_dict[len(d.split())].add(d)
+
+    return icf_dict
+
+
 def load_all_csv_rows(file_path):
     with open(file_path, encoding="utf8") as csvfile:
         reader = csv.reader(csvfile)
@@ -66,22 +78,56 @@ def get_vocab_counter(sents, word_filtering):
 
     if word_filtering == "none":
         sents = [sent.split() for sent in sents]
-        filtering = lambda _: True
-        sents = [list(filter(filtering, sent)) for sent in sents]
         sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
-    elif word_filtering == "stopwords":
-        from nltk.corpus import stopwords
+    elif word_filtering == "automatic_filtering":
+        sents = [sent.split() for sent in sents]
+        words = [word for sent in sents for word in sent]
 
-        sents = [sent.split() for sent in sents]
-        stop_words = set(stopwords.words("english"))
-        filtering = lambda word: word not in stop_words
-        sents = [list(filter(filtering, sent)) for sent in sents]
-        sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
-    elif word_filtering == "len3":
-        filtering = lambda word: len(word) > 3
-        sents = [sent.split() for sent in sents]
-        sents = [list(filter(filtering, sent)) for sent in sents]
-        sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
+        vocab = Counter(words)
+        words_too_frequent = set([word for word, freq in vocab.items() if freq > 10])
+
+        must_keep_terms = icf_terms()
+
+        regex = re.compile(r"( (?:no|yes|not|grade) .*)")
+
+        def process_sent(sents):
+            raw_sent, sent = sents
+            sent = regex.sub("", raw_sent)
+
+            sent = sent.split()
+
+            sent_too_freqs = [word in words_too_frequent for word in sent]
+
+            for i in range(len(sent)):
+                for r in range(1, len(sent) - i):
+                    sub_term = " ".join(sent[i : i + r])
+                    if sub_term in must_keep_terms[r]:
+                        sent_too_freqs[i : i + r] = [False] * r
+
+            idxs_to_remove = []
+            running_idxs_group = []
+
+            for i in range(len(sent)):
+                if sent_too_freqs[i]:
+                    running_idxs_group.append(i)
+                else:
+                    if len(running_idxs_group) >= 3:
+                        idxs_to_remove.extend(running_idxs_group)
+                    running_idxs_group = []
+
+            if len(running_idxs_group) >= 3:
+                idxs_to_remove.extend(running_idxs_group)
+
+            sent = [word for idx, word in enumerate(sent) if idx not in idxs_to_remove]
+
+            if len(sent) > 0:
+                return (raw_sent, sent)
+            else:
+                return None
+
+        sents = map(process_sent, zip(raw_sents, sents))
+        sents = list(filter(None, sents))
+
     elif word_filtering == "word_groups":
         with open("group_words_to_remove.txt", "r") as f:
             words_to_remove = f.read().splitlines()
@@ -137,22 +183,13 @@ def get_vocab_counter(sents, word_filtering):
 def preprocess(sents, word_filtering, vectors):
     vocab_counter, sents = get_vocab_counter(sents, word_filtering)
 
-    if isinstance(vectors, int):
-        vocab = Vocab(
-            vocab_counter,
-            vectors=f"glove.6B.{vectors}d",
-            vectors_cache="/home/magod/scratch/embeddings/",
-            specials=[],
-        )
-        vocab.vectors = vocab.vectors.numpy()
-    else:
-        vocab = Vocab(vocab_counter, vectors=None, specials=[],)
+    vocab = Vocab(vocab_counter, vectors=None, specials=[],)
 
     return vocab, sents
 
 
 def get_clustering_obj(method, clusters):
-    if method == "kmeans":
+    if "kmeans" in method:
         return KMeans(
             n_clusters=clusters,
             random_state=42,
@@ -169,10 +206,32 @@ def get_clustering_obj(method, clusters):
         raise ValueError("Unknown clustering method")
 
 
-def run_clustering(method, clusters, sentences, sentence_vectors, base_path):
+def run_clustering(method, clusters, sentences, sentence_vectors, base_path, config):
     clustering_obj = get_clustering_obj(method, clusters)
 
-    labels = clustering_obj.fit_predict(sentence_vectors)
+    if "kmeans_icf" in method:
+        icf_sents = [term for term_set in icf_terms().values() for term in term_set]
+        vocab, icf_sents = preprocess(icf_sents, "none", config["reduce_method"])
+        icf_sent_embeddings = sentence_vectorize(
+            config["reduce_method"], icf_sents, vocab
+        )
+        icf_sent_embeddings = apply_pca(icf_sent_embeddings, config["pca_dim"])
+
+        n_sents = len(sentences)
+
+        icf_weight = float(method.split("_")[-1])
+        total_sents = np.vstack((sentence_vectors, icf_sent_embeddings))
+        sent_weights = [0] * len(total_sents)
+        sent_weights[:n_sents] = [(1.0 - icf_weight) / len(sentences)] * n_sents
+        sent_weights[n_sents:] = [icf_weight / len(icf_sents)] * (
+            len(total_sents) - n_sents
+        )
+
+        labels = clustering_obj.fit_predict(total_sents, sample_weight=sent_weights)[
+            :n_sents
+        ]
+    else:
+        labels = clustering_obj.fit_predict(sentence_vectors)
 
     score = silhouette_score(sentence_vectors, labels, metric="cosine")
 
@@ -194,11 +253,19 @@ def get_rows(sentences, sentence_vectors, labels):
         center = np.mean(vectors, axis=0)
         dists = cdist(vectors, np.expand_dims(center, axis=0), metric="cosine")
         sorted_args = np.argsort(dists[:, 0])
-        classes[label] = [class_sentences[label][idx][0] for idx in sorted_args]
+        classes[label] = [
+            (class_sentences[label][idx][0], dists[idx]) for idx in sorted_args
+        ]
 
     classes = list(reversed(sorted(classes.values(), key=lambda item: len(item))))
 
-    return classes
+    output = []
+
+    for clas in classes:
+        output.append([c[0] for c in clas])
+        output.append([float(c[1]) for c in clas])
+
+    return output
 
 
 def save_results(sentences, sentence_vectors, labels, save_path):
@@ -221,11 +288,28 @@ def save_results(sentences, sentence_vectors, labels, save_path):
     plt.savefig(os.path.join(save_path, "tsne_clusters.png"))
     plt.close()
 
+    rows_data = get_rows(sentences, sentence_vectors, labels)
+
+    for i in range(int(len(rows_data) / 2)):
+        labels = rows_data[2 * i]
+        dists = rows_data[2 * i + 1]
+
+        plt.figure()
+        plt.bar(range(len(labels)), dists)
+        plt.ylabel("Cosine Distance")
+        plt.title(f"Cluster_{i}")
+        if "domains" in save_path:
+            labels = [w[:10] for w in labels]
+            plt.xticks(range(len(labels)), labels)
+        else:
+            plt.xticks([])
+        plt.savefig(os.path.join(save_path, f"cluster_{i}_distances.png"))
+        plt.close()
+
     # SAVE RESULTS TO CSV
     with open(os.path.join(save_path, "clusters.csv"), "w") as f:
         writer = csv.writer(f)
 
-        rows_data = get_rows(sentences, sentence_vectors, labels)
         n_rows = len(rows_data[0])
 
         for i in range(n_rows):
@@ -238,43 +322,77 @@ def save_results(sentences, sentence_vectors, labels, save_path):
             writer.writerow(row)
 
 
-def sentence_vectorize(vector_method, sents, vocab):
-    if vector_method == "bert_sent":
-        bert_model = SentenceTransformer(
-            "distilbert-base-nli-mean-tokens", device="cpu"
-        )
-        sentence_embeddings = bert_model.encode(
-            [s[0] for s in sents], show_progress_bar=False
-        )
-        return sentence_embeddings
-    elif vector_method == "bert_sent_pca":
-        bert_model = SentenceTransformer(
-            "distilbert-base-nli-mean-tokens", device="cpu"
-        )
-        sentence_embeddings = bert_model.encode(
-            [s[0] for s in sents], show_progress_bar=False
-        )
-        return sentence2vec(sents, vocab, sent_embeddings=sentence_embeddings)
-    elif vector_method == "bert_word":
-        bert_model = SentenceTransformer(
-            "distilbert-base-nli-mean-tokens", device="cpu"
-        )
-        token_embeddings = bert_model.encode(
-            [s[0] for s in sents],
-            output_value="token_embeddings",
-            show_progress_bar=False,
-        )
-        return sentence2vec(sents, vocab, token_embeddings=token_embeddings)
-    elif vector_method == "custom":
-        custom_model = fasttext.load_model(
-            "/scratch/magod/mobility_abstracts/fasttext_model.bin"
-        )
-        token_embeddings = [
-            [custom_model.get_word_vector(w) for w in s[1]] for s in sents
+def sentence_vectorize(reduce_method, sents, vocab):
+    bert_model = SentenceTransformer(
+        "distilbert-base-nli-stsb-mean-tokens", device="cpu"
+    )
+    bert_sents = [" ".join(s[1]) for s in sents]
+    token_embeddings = bert_model.encode(
+        bert_sents, output_value="token_embeddings", show_progress_bar=False,
+    )
+
+    def bert_mean_tokens(sent_embedding, weights=None):
+        if weights:
+            return np.average(sent_embedding[: len(weights)], 0, weights=weights)
+        else:
+            first_pad_idx = np.argmax(sent_embedding.sum(-1) == 0)
+            return np.mean(sent_embedding[: first_pad_idx - 1], 0)
+
+    if reduce_method == "mean":
+        return [bert_mean_tokens(s) for s in token_embeddings]
+    elif "icf_weight" in reduce_method:
+        icf_weight = float(reduce_method.split("_")[-1])
+
+        loaded_icf_terms = icf_terms()
+
+        def process_sent(sent, sent_embeddings):
+            _, sent = sent
+            icf_words = []
+
+            for i in range(len(sent)):
+                for r in range(1, len(sent) - i):
+                    sub_term = " ".join(sent[i : i + r])
+                    if sub_term in loaded_icf_terms[r]:
+                        for word in sub_term.split():
+                            icf_words.append(word)
+
+            if len(icf_words) > 0:
+                icf_word_weight = icf_weight / len(icf_words)
+                other_word_weight = (1 - icf_weight) / (len(sent) + 1 - len(icf_words))
+
+                tokenized_sent = bert_model._first_module().tokenizer.tokenize(
+                    " ".join(sent)
+                )
+
+                weights = [other_word_weight]
+                tokenized_idx = 0
+
+                for sent_idx, word in enumerate(sent):
+                    if word == tokenized_sent[sent_idx + tokenized_idx]:
+                        if word in icf_words:
+                            weights.append(icf_word_weight)
+                        else:
+                            weights.append(other_word_weight)
+                    else:
+                        for i in range(
+                            1, len(tokenized_sent) - sent_idx - tokenized_idx
+                        ):
+                            if tokenized_sent[sent_idx + tokenized_idx + i][:2] != "##":
+                                tokenized_idx += i - 1
+                                if word in icf_words:
+                                    weights.extend([icf_word_weight / i] * i)
+                                else:
+                                    weights.extend([other_word_weight / i] * i)
+                                break
+
+                return bert_mean_tokens(sent_embeddings, weights)
+            else:
+                return bert_mean_tokens(sent_embeddings)
+
+        return [
+            process_sent(sent, sent_embs)
+            for sent, sent_embs in zip(sents, token_embeddings)
         ]
-        return sentence2vec(sents, vocab, token_embeddings=token_embeddings)
-    else:
-        return sentence2vec(sents, vocab)
 
 
 def apply_pca(sent_embeddings, pca_dim):
@@ -288,12 +406,12 @@ def apply_pca(sent_embeddings, pca_dim):
 def launch_from_config(config, base_path, sents):
     save_path = create_folder_for_config(config, base_path)
 
-    vocab, sents = preprocess(sents, config["word_filtering"], config["vectors"])
-    sent_embeddings = sentence_vectorize(config["vectors"], sents, vocab)
+    vocab, sents = preprocess(sents, config["word_filtering"], config["reduce_method"])
+    sent_embeddings = sentence_vectorize(config["reduce_method"], sents, vocab)
     sent_embeddings = apply_pca(sent_embeddings, config["pca_dim"])
 
     score, labels = run_clustering(
-        config["method"], config["clusters"], sents, sent_embeddings, base_path
+        config["method"], config["clusters"], sents, sent_embeddings, base_path, config
     )
 
     save_results(sents, sent_embeddings, labels, save_path)
@@ -304,16 +422,23 @@ def launch_from_config(config, base_path, sents):
 def get_hparams():
     hparams = OrderedDict()
 
-    hparams["clusters"] = list(range(4, 16))
+    hparams["clusters"] = list(range(4, 8))
     hparams["word_filtering"] = ["none"]
-    hparams["vectors"] = [
-        "bert_sent_pca",
-        "bert_sent",
-        "bert_word",
-        "custom",
+    hparams["reduce_method"] = [
+        "icf_weight_0.4",
+        "icf_weight_0.5",
+        "icf_weight_0.6",
+        "icf_weight_0.7",
+        "mean",
     ]
     hparams["pca_dim"] = [2, 5, 10]
-    hparams["method"] = ["kmeans"]
+    hparams["method"] = [
+        "kmeans",
+        "kmeans_icf_0.4",
+        "kmeans_icf_0.5",
+        "kmeans_icf_0.6",
+        "kmeans_icf_0.7",
+    ]
 
     return hparams
 
@@ -358,7 +483,9 @@ def items_clustering():
 
     results = OrderedDict()
     hparams = get_hparams()
-    hparams["word_filtering"] = ["word_groups"] + hparams["word_filtering"]
+    hparams["word_filtering"] = ["automatic_filtering", "word_groups"] + hparams[
+        "word_filtering"
+    ]
 
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]
@@ -382,5 +509,9 @@ def items_clustering():
 
 
 if __name__ == "__main__":
+    import logging
+
+    logging.disable(logging.CRITICAL) # Mute SentenceTransformers
+
     items_clustering()
     domains_clustering()
