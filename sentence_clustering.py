@@ -216,7 +216,7 @@ def run_clustering(method, clusters, sentences, sentence_vectors, base_path, con
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
         vocab, icf_sents = preprocess(icf_sents, "none", config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
-            config["reduce_method"], icf_sents, vocab
+            config['bert-model'], config["reduce_method"], icf_sents, vocab
         )
         icf_sent_embeddings = apply_pca(icf_sent_embeddings, config["pca_dim"])
 
@@ -303,7 +303,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
         plt.title(f"Cluster_{i}")
         if "domains" in save_path:
             labels = [w[:10] for w in labels]
-            plt.xticks(range(len(labels)), labels, rotation='vertical')
+            plt.xticks(range(len(labels)), labels, rotation="vertical")
         else:
             plt.xticks([])
         plt.savefig(os.path.join(save_path, f"cluster_{i}_distances.png"))
@@ -325,9 +325,9 @@ def save_results(sentences, sentence_vectors, labels, save_path):
             writer.writerow(row)
 
 
-def sentence_vectorize(reduce_method, sents, vocab):
+def sentence_vectorize(model, reduce_method, sents, vocab):
     bert_model = SentenceTransformer(
-        "distilbert-base-nli-stsb-mean-tokens", device="cpu"
+        model, device="cpu"
     )
     bert_sents = [" ".join(s[1]) for s in sents]
     token_embeddings = bert_model.encode(
@@ -410,7 +410,7 @@ def launch_from_config(config, base_path, sents):
     save_path = create_folder_for_config(config, base_path)
 
     vocab, sents = preprocess(sents, config["word_filtering"], config["reduce_method"])
-    sent_embeddings = sentence_vectorize(config["reduce_method"], sents, vocab)
+    sent_embeddings = sentence_vectorize(config['bert-model'], config["reduce_method"], sents, vocab)
     sent_embeddings = apply_pca(sent_embeddings, config["pca_dim"])
 
     score, labels = run_clustering(
@@ -427,6 +427,10 @@ def get_hparams():
 
     hparams["clusters"] = list(range(4, 8))
     hparams["word_filtering"] = ["none"]
+    hparams["bert-model"] = [
+        "distilbert-base-nli-stsb-mean-tokens",
+        "distilbert-base-nli-mean-tokens",
+    ]
     hparams["reduce_method"] = [
         "icf_weight_0.4",
         "icf_weight_0.5",
@@ -519,5 +523,5 @@ if __name__ == "__main__":
 
     logging.disable(logging.CRITICAL)  # Mute SentenceTransformers
 
-    # items_clustering()
+    items_clustering()
     domains_clustering()
