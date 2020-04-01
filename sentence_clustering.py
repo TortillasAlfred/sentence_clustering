@@ -216,7 +216,7 @@ def run_clustering(method, clusters, sentences, sentence_vectors, base_path, con
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
         vocab, icf_sents = preprocess(icf_sents, "none", config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
-            config['bert-model'], config["reduce_method"], icf_sents, vocab
+            config["bert-model"], config["reduce_method"], icf_sents, vocab
         )
         icf_sent_embeddings = apply_pca(icf_sent_embeddings, config["pca_dim"])
 
@@ -326,9 +326,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 
 def sentence_vectorize(model, reduce_method, sents, vocab):
-    bert_model = SentenceTransformer(
-        model, device="cpu"
-    )
+    bert_model = SentenceTransformer(model, device="cpu")
     bert_sents = [" ".join(s[1]) for s in sents]
     token_embeddings = bert_model.encode(
         bert_sents, output_value="token_embeddings", show_progress_bar=False,
@@ -410,7 +408,9 @@ def launch_from_config(config, base_path, sents):
     save_path = create_folder_for_config(config, base_path)
 
     vocab, sents = preprocess(sents, config["word_filtering"], config["reduce_method"])
-    sent_embeddings = sentence_vectorize(config['bert-model'], config["reduce_method"], sents, vocab)
+    sent_embeddings = sentence_vectorize(
+        config["bert-model"], config["reduce_method"], sents, vocab
+    )
     sent_embeddings = apply_pca(sent_embeddings, config["pca_dim"])
 
     score, labels = run_clustering(
@@ -433,8 +433,6 @@ def get_hparams():
     ]
     hparams["reduce_method"] = [
         "icf_weight_0.4",
-        "icf_weight_0.5",
-        "icf_weight_0.6",
         "icf_weight_0.7",
         "mean",
     ]
@@ -442,8 +440,6 @@ def get_hparams():
     hparams["method"] = [
         "kmeans",
         "kmeans_icf_0.4",
-        "kmeans_icf_0.5",
-        "kmeans_icf_0.6",
         "kmeans_icf_0.7",
     ]
 
@@ -493,7 +489,6 @@ def items_clustering():
     hparams["word_filtering"] = [
         "automatic_filtering_5",
         "automatic_filtering_10",
-        "automatic_filtering_20",
         "word_groups",
     ] + hparams["word_filtering"]
 
