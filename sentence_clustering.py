@@ -438,13 +438,15 @@ def get_hparams():
 
     hparams["clusters"] = list(range(5, 9))
     hparams["word_filtering"] = ["none"]
-    hparams["reduce_method"] = ["mean", "sent"]
-    hparams["pca_dim"] = [5, 10, 50, 100, None]
-    hparams["method"] = [
-        "kmeans",
-        "kmeans_icf_0.1",
-        "kmeans_icf_0.5",
+    hparams["reduce_method"] = [
+        "mean",
+        "icf_weight_0.1",
+        "icf_weight_0.25",
+        "icf_weight_0.5",
+        "icf_weight_0.8",
     ]
+    hparams["pca_dim"] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    hparams["method"] = ["kmeans", "kmeans_icf_0.1", "kmeans_icf_0.5", "kmeans_icf_0.9"]
 
     return hparams
 
@@ -489,9 +491,12 @@ def items_clustering():
 
     results = OrderedDict()
     hparams = get_hparams()
-    hparams["word_filtering"] = ["automatic_filtering_10", "word_groups",] + hparams[
-        "word_filtering"
-    ]
+    hparams["word_filtering"] = [
+        "automatic_filtering_10",
+        "automatic_filtering_15",
+        "automatic_filtering_20",
+        "automatic_filtering_25",
+    ] + hparams["word_filtering"]
 
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]

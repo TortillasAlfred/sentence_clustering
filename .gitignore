@@ -13,6 +13,7 @@ march_24
 iter3_results
 iter4_results
 iter5_results
+iter6_results
 *.csv
 
 *.aux
