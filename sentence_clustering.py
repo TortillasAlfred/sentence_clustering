@@ -219,7 +219,7 @@ def run_clustering(method, clusters, sentences, sentence_vectors, base_path, con
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
         vocab, icf_sents = preprocess(icf_sents, "none", config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
-            config["bert-model"], config["reduce_method"], icf_sents, vocab
+            config["reduce_method"], icf_sents, vocab
         )
         icf_sent_embeddings = apply_pca(icf_sent_embeddings, config["pca_dim"])
 
@@ -328,75 +328,85 @@ def save_results(sentences, sentence_vectors, labels, save_path):
             writer.writerow(row)
 
 
-def sentence_vectorize(model, reduce_method, sents, vocab):
-    bert_model = SentenceTransformer(model, device="cpu")
+def sentence_vectorize(reduce_method, sents, vocab):
+    bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
     bert_sents = [" ".join(s[1]) for s in sents]
-    token_embeddings = bert_model.encode(
-        bert_sents, output_value="token_embeddings", show_progress_bar=False,
-    )
+    if reduce_method == "sent":
+        sentence_embeddings = bert_model.encode(bert_sents, show_progress_bar=False)
 
-    def bert_mean_tokens(sent_embedding, weights=None):
-        if weights:
-            return np.average(sent_embedding[: len(weights)], 0, weights=weights)
-        else:
-            first_pad_idx = np.argmax(sent_embedding.sum(-1) == 0)
-            return np.mean(sent_embedding[: first_pad_idx - 1], 0)
+        return sentence_embeddings
+    else:
+        token_embeddings = bert_model.encode(
+            bert_sents, output_value="token_embeddings", show_progress_bar=False,
+        )
 
-    if reduce_method == "mean":
-        return [bert_mean_tokens(s) for s in token_embeddings]
-    elif "icf_weight" in reduce_method:
-        icf_weight = float(reduce_method.split("_")[-1])
-
-        loaded_icf_terms = icf_terms()
-
-        def process_sent(sent, sent_embeddings):
-            _, sent = sent
-            icf_words = []
-
-            for i in range(len(sent)):
-                for r in range(1, len(sent) - i):
-                    sub_term = " ".join(sent[i : i + r])
-                    if sub_term in loaded_icf_terms[r]:
-                        for word in sub_term.split():
-                            icf_words.append(word)
-
-            if len(icf_words) > 0:
-                icf_word_weight = icf_weight / len(icf_words)
-                other_word_weight = (1 - icf_weight) / (len(sent) + 1 - len(icf_words))
-
-                tokenized_sent = bert_model._first_module().tokenizer.tokenize(
-                    " ".join(sent)
-                )
-
-                weights = [other_word_weight]
-                tokenized_idx = 0
-
-                for sent_idx, word in enumerate(sent):
-                    if word == tokenized_sent[sent_idx + tokenized_idx]:
-                        if word in icf_words:
-                            weights.append(icf_word_weight)
-                        else:
-                            weights.append(other_word_weight)
-                    else:
-                        for i in range(
-                            1, len(tokenized_sent) - sent_idx - tokenized_idx
-                        ):
-                            if tokenized_sent[sent_idx + tokenized_idx + i][:2] != "##":
-                                tokenized_idx += i - 1
-                                if word in icf_words:
-                                    weights.extend([icf_word_weight / i] * i)
-                                else:
-                                    weights.extend([other_word_weight / i] * i)
-                                break
-
-                return bert_mean_tokens(sent_embeddings, weights)
+        def bert_mean_tokens(sent_embedding, weights=None):
+            if weights:
+                return np.average(sent_embedding[1 : len(weights)], 0, weights=weights)
             else:
-                return bert_mean_tokens(sent_embeddings)
+                first_pad_idx = np.argmax(sent_embedding.sum(-1) == 0)
+                return np.mean(sent_embedding[1 : first_pad_idx - 1], 0)
 
-        return [
-            process_sent(sent, sent_embs)
-            for sent, sent_embs in zip(sents, token_embeddings)
-        ]
+        if reduce_method == "mean":
+            return [bert_mean_tokens(s) for s in token_embeddings]
+        elif "icf_weight" in reduce_method:
+            icf_weight = float(reduce_method.split("_")[-1])
+
+            loaded_icf_terms = icf_terms()
+
+            def process_sent(sent, sent_embeddings):
+                _, sent = sent
+                icf_words = []
+
+                for i in range(len(sent)):
+                    for r in range(1, len(sent) - i):
+                        sub_term = " ".join(sent[i : i + r])
+                        if sub_term in loaded_icf_terms[r]:
+                            for word in sub_term.split():
+                                icf_words.append(word)
+
+                if len(icf_words) > 0:
+                    icf_word_weight = icf_weight / len(icf_words)
+                    other_word_weight = (1 - icf_weight) / (
+                        len(sent) + 1 - len(icf_words)
+                    )
+
+                    tokenized_sent = bert_model._first_module().tokenizer.tokenize(
+                        " ".join(sent)
+                    )
+
+                    weights = []
+                    tokenized_idx = 0
+
+                    for sent_idx, word in enumerate(sent):
+                        if word == tokenized_sent[sent_idx + tokenized_idx]:
+                            if word in icf_words:
+                                weights.append(icf_word_weight)
+                            else:
+                                weights.append(other_word_weight)
+                        else:
+                            for i in range(
+                                1, len(tokenized_sent) - sent_idx - tokenized_idx
+                            ):
+                                if (
+                                    tokenized_sent[sent_idx + tokenized_idx + i][:2]
+                                    != "##"
+                                ):
+                                    tokenized_idx += i - 1
+                                    if word in icf_words:
+                                        weights.extend([icf_word_weight / i] * i)
+                                    else:
+                                        weights.extend([other_word_weight / i] * i)
+                                    break
+
+                    return bert_mean_tokens(sent_embeddings, weights)
+                else:
+                    return bert_mean_tokens(sent_embeddings)
+
+            return [
+                process_sent(sent, sent_embs)
+                for sent, sent_embs in zip(sents, token_embeddings)
+            ]
 
 
 def apply_pca(sent_embeddings, pca_dim):
@@ -411,9 +421,7 @@ def launch_from_config(config, base_path, sents):
     save_path = create_folder_for_config(config, base_path)
 
     vocab, sents = preprocess(sents, config["word_filtering"], config["reduce_method"])
-    sent_embeddings = sentence_vectorize(
-        config["bert-model"], config["reduce_method"], sents, vocab
-    )
+    sent_embeddings = sentence_vectorize(config["reduce_method"], sents, vocab)
     sent_embeddings = apply_pca(sent_embeddings, config["pca_dim"])
 
     score, labels = run_clustering(
@@ -428,22 +436,14 @@ def launch_from_config(config, base_path, sents):
 def get_hparams():
     hparams = OrderedDict()
 
-    hparams["clusters"] = list(range(4, 8))
+    hparams["clusters"] = list(range(5, 9))
     hparams["word_filtering"] = ["none"]
-    hparams["bert-model"] = [
-        "distilbert-base-nli-stsb-mean-tokens",
-        "distilbert-base-nli-mean-tokens",
-    ]
-    hparams["reduce_method"] = [
-        "icf_weight_0.4",
-        "icf_weight_0.7",
-        "mean",
-    ]
-    hparams["pca_dim"] = [2, 5, 10]
+    hparams["reduce_method"] = ["mean", "sent"]
+    hparams["pca_dim"] = [5, 10, 50, 100, None]
     hparams["method"] = [
         "kmeans",
-        "kmeans_icf_0.4",
-        "kmeans_icf_0.7",
+        "kmeans_icf_0.1",
+        "kmeans_icf_0.5",
     ]
 
     return hparams
@@ -489,11 +489,9 @@ def items_clustering():
 
     results = OrderedDict()
     hparams = get_hparams()
-    hparams["word_filtering"] = [
-        "automatic_filtering_5",
-        "automatic_filtering_10",
-        "word_groups",
-    ] + hparams["word_filtering"]
+    hparams["word_filtering"] = ["automatic_filtering_10", "word_groups",] + hparams[
+        "word_filtering"
+    ]
 
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]
