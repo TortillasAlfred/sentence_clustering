@@ -20,6 +20,9 @@ from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
 import fasttext
 import re
+from matplotlib import rcParams
+
+rcParams.update({"figure.autolayout": True})
 
 
 def icf_terms():
