@@ -445,7 +445,7 @@ def get_hparams():
         "icf_weight_0.5",
         "icf_weight_0.8",
     ]
-    hparams["pca_dim"] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    hparams["pca_dim"] = [2, 3, 4, 5, 6, 7, 8, 9, 10]
     hparams["method"] = ["kmeans", "kmeans_icf_0.1", "kmeans_icf_0.5", "kmeans_icf_0.9"]
 
     return hparams
