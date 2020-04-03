@@ -342,7 +342,7 @@ def sentence_vectorize(reduce_method, sents, vocab):
 
         def bert_mean_tokens(sent_embedding, weights=None):
             if weights:
-                return np.average(sent_embedding[1 : len(weights)], 0, weights=weights)
+                return np.average(sent_embedding[1 : len(weights) + 1], 0, weights=weights)
             else:
                 first_pad_idx = np.argmax(sent_embedding.sum(-1) == 0)
                 return np.mean(sent_embedding[1 : first_pad_idx - 1], 0)
@@ -440,7 +440,6 @@ def get_hparams():
     hparams["word_filtering"] = ["none"]
     hparams["reduce_method"] = [
         "mean",
-        "icf_weight_0.1",
         "icf_weight_0.25",
         "icf_weight_0.5",
         "icf_weight_0.8",
