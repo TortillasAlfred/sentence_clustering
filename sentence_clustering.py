@@ -531,9 +531,9 @@ def domains_clustering():
         list(
             product(
                 *[[(key, val) for val in vals] for key, vals in pre_hparams.items()]
-            ),
-            desc="Processing configs for items",
-        )
+            )
+        ),
+        desc="Processing configs for items",
     ):
         sents = deepcopy(domains)
         pre_config = dict(pre_config)
