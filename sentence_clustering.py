@@ -521,15 +521,19 @@ def domains_clustering():
     results = OrderedDict()
     hparams, pre_hparams = get_hparams()
 
-    all_configs = product(
-        *[[(key, val) for val in vals] for key, vals in hparams.items()]
+    all_configs = list(
+        product(*[[(key, val) for val in vals] for key, vals in hparams.items()])
     )
 
     results = []
 
     for pre_config in tqdm(
-        product(*[[(key, val) for val in vals] for key, vals in pre_hparams.items()]),
-        desc="Processing configs for items",
+        list(
+            product(
+                *[[(key, val) for val in vals] for key, vals in pre_hparams.items()]
+            ),
+            desc="Processing configs for items",
+        )
     ):
         sents = deepcopy(domains)
         pre_config = dict(pre_config)
@@ -575,16 +579,20 @@ def items_clustering():
         "automatic_filtering_20",
         "automatic_filtering_25",
     ]
-    pre_hparams["word_filtering"] = items_only_filters + pre_hparams["word_filtering"]
+    pre_hparams["word_filtering"].extend(items_only_filters)
 
-    hparams["method"] = ["nearest_neighbor"] + hparams["method"]
+    hparams["method"].append("nearest_neighbor")
 
-    all_configs = product(
-        *[[(key, val) for val in vals] for key, vals in hparams.items()]
+    all_configs = list(
+        product(*[[(key, val) for val in vals] for key, vals in hparams.items()])
     )
 
     for pre_config in tqdm(
-        product(*[[(key, val) for val in vals] for key, vals in pre_hparams.items()]),
+        list(
+            product(
+                *[[(key, val) for val in vals] for key, vals in pre_hparams.items()]
+            )
+        ),
         desc="Processing configs for items",
     ):
         sents = deepcopy(items)
@@ -614,5 +622,5 @@ def items_clustering():
 
 
 if __name__ == "__main__":
-    domains_clustering()
+    # domains_clustering()
     items_clustering()
