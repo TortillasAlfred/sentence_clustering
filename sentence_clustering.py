@@ -55,8 +55,11 @@ def load_all_items():
     return load_all_csv_rows("Mobility_item_test_RA.csv")
 
 
-def create_folder_for_config(config, base_path):
+def create_folder_for_config(config, pre_config, base_path):
     save_path = base_path
+
+    for key, val in pre_config.items():
+        save_path = os.path.join(save_path, f"{key}::{val}")
 
     for key, val in config.items():
         save_path = os.path.join(save_path, f"{key}::{val}")
@@ -98,38 +101,43 @@ def get_vocab_counter(sents, word_filtering):
 
         def process_sent(sents):
             raw_sent, sent = sents
-            sent = regex.sub("", raw_sent)
+            if len(sent) > 2:
+                sent = regex.sub("", raw_sent)
 
-            sent = sent.split()
+                sent = sent.split()
 
-            sent_too_freqs = [word in words_too_frequent for word in sent]
+                sent_too_freqs = [word in words_too_frequent for word in sent]
 
-            for i in range(len(sent)):
-                for r in range(1, len(sent) - i):
-                    sub_term = " ".join(sent[i : i + r])
-                    if sub_term in must_keep_terms[r]:
-                        sent_too_freqs[i : i + r] = [False] * r
+                for i in range(len(sent)):
+                    for r in range(1, len(sent) - i):
+                        sub_term = " ".join(sent[i : i + r])
+                        if sub_term in must_keep_terms[r]:
+                            sent_too_freqs[i : i + r] = [False] * r
 
-            idxs_to_remove = []
-            running_idxs_group = []
+                idxs_to_remove = []
+                running_idxs_group = []
 
-            for i in range(len(sent)):
-                if sent_too_freqs[i]:
-                    running_idxs_group.append(i)
+                for i in range(len(sent)):
+                    if sent_too_freqs[i]:
+                        running_idxs_group.append(i)
+                    else:
+                        if len(running_idxs_group) >= 3:
+                            idxs_to_remove.extend(running_idxs_group)
+                        running_idxs_group = []
+
+                if len(running_idxs_group) >= 3:
+                    idxs_to_remove.extend(running_idxs_group)
+
+                sent = [
+                    word for idx, word in enumerate(sent) if idx not in idxs_to_remove
+                ]
+
+                if len(sent) > 0:
+                    return (raw_sent, sent)
                 else:
-                    if len(running_idxs_group) >= 3:
-                        idxs_to_remove.extend(running_idxs_group)
-                    running_idxs_group = []
-
-            if len(running_idxs_group) >= 3:
-                idxs_to_remove.extend(running_idxs_group)
-
-            sent = [word for idx, word in enumerate(sent) if idx not in idxs_to_remove]
-
-            if len(sent) > 0:
-                return (raw_sent, sent)
+                    return None
             else:
-                return None
+                return (raw_sent, sent)
 
         sents = map(process_sent, zip(raw_sents, sents))
         sents = list(filter(None, sents))
@@ -208,20 +216,31 @@ def get_clustering_obj(method, clusters):
         return SpectralClustering(
             n_clusters=clusters, random_state=42, n_init=20, n_jobs=-1
         )
+    elif method == "nearest_neighbor":
+        return None
     else:
         raise ValueError("Unknown clustering method")
 
 
-def run_clustering(method, clusters, sentences, sentence_vectors, base_path, config):
+def run_clustering(
+    method,
+    clusters,
+    sentences,
+    sentence_vectors,
+    base_path,
+    config,
+    pre_config,
+    save_path,
+):
     clustering_obj = get_clustering_obj(method, clusters)
 
     if "kmeans_icf" in method:
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
-        vocab, icf_sents = preprocess(icf_sents, "none", config["reduce_method"])
+        vocab, icf_sents = preprocess(icf_sents, "none", pre_config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
-            config["reduce_method"], icf_sents, vocab
+            pre_config["reduce_method"], icf_sents, vocab
         )
-        icf_sent_embeddings = apply_pca(icf_sent_embeddings, config["pca_dim"])
+        icf_sent_embeddings = reduce_dim(icf_sent_embeddings, config["reduced_dim"])
 
         n_sents = len(sentences)
 
@@ -236,10 +255,23 @@ def run_clustering(method, clusters, sentences, sentence_vectors, base_path, con
         labels = clustering_obj.fit_predict(total_sents, sample_weight=sent_weights)[
             :n_sents
         ]
+    elif method == "nearest_neighbor":
+        load_path = save_path.replace("items", "domains")
+        load_path = load_path.replace("method::nearest_neighbor", "method::kmeans")
+        with open(os.path.join(load_path, "clusters_centers.pck"), "rb") as f:
+            clusters_centers = pickle.load(f)
+
+        clusters_centers = np.asarray(clusters_centers)
+
+        dists = cdist(sentence_vectors, clusters_centers, metric="cosine")
+        labels = np.argmin(dists, axis=-1)
     else:
         labels = clustering_obj.fit_predict(sentence_vectors)
 
-    score = silhouette_score(sentence_vectors, labels, metric="cosine")
+    if len(set(labels)) == 0:
+        score = 0.0
+    else:
+        score = silhouette_score(sentence_vectors, labels, metric="cosine")
 
     return score, labels
 
@@ -296,6 +328,16 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
     rows_data = get_rows(sentences, sentence_vectors, labels)
 
+    is_domain_clustering = "domains" in save_path
+
+    if is_domain_clustering:
+        cluster_centers = [
+            np.mean(sentence_vectors[labels == i], 0) for i in range(max(labels))
+        ]
+
+        with open(os.path.join(save_path, "clusters_centers.pck"), "wb") as f:
+            pickle.dump(cluster_centers, f)
+
     for i in range(int(len(rows_data) / 2)):
         labels = rows_data[2 * i]
         dists = rows_data[2 * i + 1]
@@ -304,7 +346,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
         plt.bar(range(len(labels)), dists)
         plt.ylabel("Cosine Distance")
         plt.title(f"Cluster_{i}")
-        if "domains" in save_path:
+        if is_domain_clustering:
             labels = [w[:10] for w in labels]
             plt.xticks(range(len(labels)), labels, rotation="vertical")
         else:
@@ -329,7 +371,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 
 def sentence_vectorize(reduce_method, sents, vocab):
-    bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
+    bert_model = SentenceTransformer("distilbert-base-nli-mean-tokens", device="cpu")
     bert_sents = [" ".join(s[1]) for s in sents]
     if reduce_method == "sent":
         sentence_embeddings = bert_model.encode(bert_sents, show_progress_bar=False)
@@ -342,7 +384,9 @@ def sentence_vectorize(reduce_method, sents, vocab):
 
         def bert_mean_tokens(sent_embedding, weights=None):
             if weights:
-                return np.average(sent_embedding[1 : len(weights) + 1], 0, weights=weights)
+                return np.average(
+                    sent_embedding[1 : len(weights) + 1], 0, weights=weights
+                )
             else:
                 first_pad_idx = np.argmax(sent_embedding.sum(-1) == 0)
                 return np.mean(sent_embedding[1 : first_pad_idx - 1], 0)
@@ -409,23 +453,34 @@ def sentence_vectorize(reduce_method, sents, vocab):
             ]
 
 
-def apply_pca(sent_embeddings, pca_dim):
-    if pca_dim:
-        return PCA(n_components=pca_dim).fit_transform(sent_embeddings)
+def reduce_dim(sent_embeddings, reduced_dim):
+    if "pca" in reduced_dim:
+        return PCA(n_components=int(reduced_dim.split("_")[-1])).fit_transform(
+            sent_embeddings
+        )
+    elif "tsne" in reduced_dim:
+        return TSNE(
+            n_components=int(reduced_dim.split("_")[-1]), init="pca"
+        ).fit_transform(sent_embeddings)
     else:
         return sent_embeddings
 
 
 @delayed
-def launch_from_config(config, base_path, sents):
-    save_path = create_folder_for_config(config, base_path)
+def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddings):
+    save_path = create_folder_for_config(config, pre_config, base_path)
 
-    vocab, sents = preprocess(sents, config["word_filtering"], config["reduce_method"])
-    sent_embeddings = sentence_vectorize(config["reduce_method"], sents, vocab)
-    sent_embeddings = apply_pca(sent_embeddings, config["pca_dim"])
+    sent_embeddings = reduce_dim(sent_embeddings, config["reduced_dim"])
 
     score, labels = run_clustering(
-        config["method"], config["clusters"], sents, sent_embeddings, base_path, config
+        config["method"],
+        config["clusters"],
+        sents,
+        sent_embeddings,
+        base_path,
+        config,
+        pre_config,
+        save_path,
     )
 
     save_results(sents, sent_embeddings, labels, save_path)
@@ -436,18 +491,16 @@ def launch_from_config(config, base_path, sents):
 def get_hparams():
     hparams = OrderedDict()
 
-    hparams["clusters"] = list(range(5, 9))
-    hparams["word_filtering"] = ["none"]
-    hparams["reduce_method"] = [
-        "mean",
-        "icf_weight_0.25",
-        "icf_weight_0.5",
-        "icf_weight_0.8",
-    ]
-    hparams["pca_dim"] = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+    hparams["clusters"] = list(range(4, 8))
+    hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10", "tsne_2", "tsne_5"]
     hparams["method"] = ["kmeans", "kmeans_icf_0.1", "kmeans_icf_0.5", "kmeans_icf_0.9"]
 
-    return hparams
+    pre_hparams = OrderedDict()
+
+    pre_hparams["word_filtering"] = ["none"]
+    pre_hparams["reduce_method"] = ["mean", "sent"]
+
+    return hparams, pre_hparams
 
 
 def domains_clustering():
@@ -458,19 +511,34 @@ def domains_clustering():
         os.makedirs(results_dir)
 
     results = OrderedDict()
-    hparams = get_hparams()
+    hparams, pre_hparams = get_hparams()
 
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]
     )
-    all_configs = tqdm(
-        [OrderedDict(config) for config in all_configs],
-        desc="Processing configs for domains",
-    )
 
-    results = Parallel(n_jobs=-1, verbose=1)(
-        launch_from_config(config, results_dir, domains) for config in all_configs
-    )
+    results = []
+
+    for pre_config in tqdm(
+        product(*[[(key, val) for val in vals] for key, vals in pre_hparams.items()]),
+        desc="Processing configs for items",
+    ):
+        sents = deepcopy(domains)
+        pre_config = dict(pre_config)
+        vocab, sents = preprocess(
+            sents, pre_config["word_filtering"], pre_config["reduce_method"]
+        )
+
+        sent_embeddings = sentence_vectorize(pre_config["reduce_method"], sents, vocab)
+
+        results.extend(
+            Parallel(n_jobs=-1)(
+                launch_from_config(
+                    dict(config), pre_config, results_dir, vocab, sents, sent_embeddings
+                )
+                for config in all_configs
+            )
+        )
 
     results = sorted(results, key=lambda item: item[1])
 
@@ -489,25 +557,44 @@ def items_clustering():
         os.makedirs(results_dir)
 
     results = OrderedDict()
-    hparams = get_hparams()
-    hparams["word_filtering"] = [
+    hparams, pre_hparams = get_hparams()
+
+    results = []
+
+    items_only_filters = [
         "automatic_filtering_10",
         "automatic_filtering_15",
         "automatic_filtering_20",
         "automatic_filtering_25",
-    ] + hparams["word_filtering"]
+    ]
+    pre_hparams["word_filtering"] = pre_hparams["word_filtering"] + items_only_filters
+
+    hparams["method"] = ["nearest_neighbor"] + hparams["method"]
 
     all_configs = product(
         *[[(key, val) for val in vals] for key, vals in hparams.items()]
     )
-    all_configs = tqdm(
-        [OrderedDict(config) for config in all_configs],
-        desc="Processing configs for items",
-    )
 
-    results = Parallel(n_jobs=-1, verbose=1)(
-        launch_from_config(config, results_dir, items) for config in all_configs
-    )
+    for pre_config in tqdm(
+        product(*[[(key, val) for val in vals] for key, vals in pre_hparams.items()]),
+        desc="Processing configs for items",
+    ):
+        sents = deepcopy(items)
+        pre_config = dict(pre_config)
+        vocab, sents = preprocess(
+            sents, pre_config["word_filtering"], pre_config["reduce_method"]
+        )
+
+        sent_embeddings = sentence_vectorize(pre_config["reduce_method"], sents, vocab)
+
+        results.extend(
+            Parallel(n_jobs=-1)(
+                launch_from_config(
+                    dict(config), pre_config, results_dir, vocab, sents, sent_embeddings
+                )
+                for config in all_configs
+            )
+        )
 
     results = sorted(results, key=lambda item: item[1])
 
@@ -519,9 +606,5 @@ def items_clustering():
 
 
 if __name__ == "__main__":
-    import logging
-
-    logging.disable(logging.CRITICAL)  # Mute SentenceTransformers
-
-    items_clustering()
     domains_clustering()
+    items_clustering()
