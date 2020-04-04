@@ -268,7 +268,7 @@ def run_clustering(
     else:
         labels = clustering_obj.fit_predict(sentence_vectors)
 
-    if len(set(labels)) == 0:
+    if len(set(labels)) == 1:
         score = 0.0
     else:
         score = silhouette_score(sentence_vectors, labels, metric="cosine")
