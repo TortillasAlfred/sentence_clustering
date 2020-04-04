@@ -257,7 +257,13 @@ def run_clustering(
         ]
     elif method == "nearest_neighbor":
         load_path = save_path.replace("items", "domains")
-        load_path = load_path.replace("method::nearest_neighbor", "method::kmeans")
+        load_path = load_path.replace(
+            "method::nearest_neighbor", "method::kmeans_icf_0.1"
+        )
+        load_path = load_path.replace(
+            f"word_filtering::{pre_config['word_filtering']}", "word_filtering::none"
+        )
+
         with open(os.path.join(load_path, "clusters_centers.pck"), "rb") as f:
             clusters_centers = pickle.load(f)
 
