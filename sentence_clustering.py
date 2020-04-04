@@ -492,7 +492,7 @@ def get_hparams():
     hparams = OrderedDict()
 
     hparams["clusters"] = list(range(4, 8))
-    hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10", "tsne_2", "tsne_5"]
+    hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10", "tsne_2", "tsne_4"]
     hparams["method"] = ["kmeans", "kmeans_icf_0.1", "kmeans_icf_0.5", "kmeans_icf_0.9"]
 
     pre_hparams = OrderedDict()
