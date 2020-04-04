@@ -491,6 +491,8 @@ def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddi
 
     save_results(sents, sent_embeddings, labels, save_path)
 
+    config.update(pre_config)
+
     return (config, score)
 
 
