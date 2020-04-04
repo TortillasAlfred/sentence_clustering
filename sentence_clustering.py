@@ -573,7 +573,7 @@ def items_clustering():
         "automatic_filtering_20",
         "automatic_filtering_25",
     ]
-    pre_hparams["word_filtering"] = pre_hparams["word_filtering"] + items_only_filters
+    pre_hparams["word_filtering"] = items_only_filters + pre_hparams["word_filtering"]
 
     hparams["method"] = ["nearest_neighbor"] + hparams["method"]
 
