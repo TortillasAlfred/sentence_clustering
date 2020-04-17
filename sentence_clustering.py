@@ -381,7 +381,7 @@ def save_results(sentences, sentence_vectors, labels, save_path):
 
 def sentence_vectorize(reduce_method, model, sents, vocab):
     bert_model = SentenceTransformer(model, device="cpu")
-    bert_sents = [" ".join(s[1]) for s in sents[:10]]
+    bert_sents = [" ".join(s[1]) for s in sents]
     if reduce_method == "sent":
         sentence_embeddings = bert_model.encode(bert_sents, show_progress_bar=False)
 
