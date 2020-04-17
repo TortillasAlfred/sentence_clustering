@@ -247,6 +247,7 @@ def run_clustering(
         )
 
         n_sents = len(sentences)
+        sentence_vectors = total_sents[:n_sents]
 
         icf_weight = float(method.split("_")[-1])
         sent_weights = [0] * len(total_sents)
@@ -258,6 +259,7 @@ def run_clustering(
         labels = clustering_obj.fit_predict(total_sents, sample_weight=sent_weights)[
             :n_sents
         ]
+
     elif method == "nearest_neighbor":
         load_path = save_path.replace("items", "domains")
         load_path = load_path.replace(
@@ -282,7 +284,7 @@ def run_clustering(
     else:
         score = silhouette_score(sentence_vectors, labels, metric="cosine")
 
-    return score, labels
+    return score, labels, sentence_vectors
 
 
 def get_rows(sentences, sentence_vectors, labels):
@@ -484,7 +486,7 @@ def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddi
         sent_embeddings, config["reduced_dim"], apply="icf" not in config["method"]
     )
 
-    score, labels = run_clustering(
+    score, labels, sent_embeddings = run_clustering(
         config["method"],
         config["clusters"],
         sents,
