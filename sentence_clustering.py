@@ -240,12 +240,15 @@ def run_clustering(
         icf_sent_embeddings = sentence_vectorize(
             pre_config["reduce_method"], icf_sents, vocab
         )
-        icf_sent_embeddings = reduce_dim(icf_sent_embeddings, config["reduced_dim"])
+        total_sents = reduce_dim(
+            np.vstack((np.asarray(sentence_vectors), np.asarray(icf_sent_embeddings))),
+            config["reduced_dim"],
+            apply=True,
+        )
 
         n_sents = len(sentences)
 
         icf_weight = float(method.split("_")[-1])
-        total_sents = np.vstack((sentence_vectors, icf_sent_embeddings))
         sent_weights = [0] * len(total_sents)
         sent_weights[:n_sents] = [(1.0 - icf_weight) / len(sentences)] * n_sents
         sent_weights[n_sents:] = [icf_weight / len(icf_sents)] * (
@@ -376,9 +379,9 @@ def save_results(sentences, sentence_vectors, labels, save_path):
             writer.writerow(row)
 
 
-def sentence_vectorize(reduce_method, sents, vocab):
-    bert_model = SentenceTransformer("bert-large-nli-mean-tokens", device="cpu")
-    bert_sents = [" ".join(s[1]) for s in sents]
+def sentence_vectorize(reduce_method, model, sents, vocab):
+    bert_model = SentenceTransformer(model, device="cpu")
+    bert_sents = [" ".join(s[1]) for s in sents[:10]]
     if reduce_method == "sent":
         sentence_embeddings = bert_model.encode(bert_sents, show_progress_bar=False)
 
@@ -459,24 +462,27 @@ def sentence_vectorize(reduce_method, sents, vocab):
             ]
 
 
-def reduce_dim(sent_embeddings, reduced_dim):
-    if "pca" in reduced_dim:
-        return PCA(n_components=int(reduced_dim.split("_")[-1])).fit_transform(
-            sent_embeddings
-        )
-    elif "tsne" in reduced_dim:
-        return TSNE(
-            n_components=int(reduced_dim.split("_")[-1]), init="pca"
-        ).fit_transform(sent_embeddings)
-    else:
-        return sent_embeddings
+def reduce_dim(sent_embeddings, reduced_dim, apply=True):
+    if apply:
+        if "pca" in reduced_dim:
+            return PCA(n_components=int(reduced_dim.split("_")[-1])).fit_transform(
+                sent_embeddings
+            )
+        elif "tsne" in reduced_dim:
+            return TSNE(
+                n_components=int(reduced_dim.split("_")[-1]), init="pca"
+            ).fit_transform(sent_embeddings)
+
+    return sent_embeddings
 
 
 @delayed
 def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddings):
     save_path = create_folder_for_config(config, pre_config, base_path)
 
-    sent_embeddings = reduce_dim(sent_embeddings, config["reduced_dim"])
+    sent_embeddings = reduce_dim(
+        sent_embeddings, config["reduced_dim"], apply="icf" not in config["method"]
+    )
 
     score, labels = run_clustering(
         config["method"],
@@ -500,13 +506,19 @@ def get_hparams():
     hparams = OrderedDict()
 
     hparams["clusters"] = list(range(4, 8))
-    hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10", "tsne_2", "tsne_3"]
-    hparams["method"] = ["kmeans", "kmeans_icf_0.1", "kmeans_icf_0.5", "kmeans_icf_0.9"]
+    hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10"]
+    hparams["method"] = ["kmeans_icf_0.1", "kmeans_icf_0.5", "kmeans_icf_0.9", "kmeans"]
 
     pre_hparams = OrderedDict()
 
     pre_hparams["word_filtering"] = ["none"]
     pre_hparams["reduce_method"] = ["mean", "sent"]
+    pre_hparams["model"] = [
+        "distilbert-base-nli-mean-tokens",
+        "distilbert-base-nli-stsb-mean-tokens",
+        "bert-large-nli-mean-tokens",
+        "bert-large-nli-stsb-mean-tokens",
+    ]
 
     return hparams, pre_hparams
 
@@ -604,7 +616,7 @@ def items_clustering():
         sent_embeddings = sentence_vectorize(pre_config["reduce_method"], sents, vocab)
 
         results.extend(
-            Parallel(n_jobs=-1)(
+            Parallel(n_jobs=1)(
                 launch_from_config(
                     dict(config), pre_config, results_dir, vocab, sents, sent_embeddings
                 )
@@ -622,5 +634,5 @@ def items_clustering():
 
 
 if __name__ == "__main__":
-    domains_clustering()
+    # domains_clustering()
     items_clustering()
