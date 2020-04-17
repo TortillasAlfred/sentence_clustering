@@ -238,7 +238,7 @@ def run_clustering(
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
         vocab, icf_sents = preprocess(icf_sents, "none", pre_config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
-            pre_config["reduce_method"], icf_sents, vocab
+            pre_config["reduce_method"], pre_config["model"], icf_sents, vocab
         )
         total_sents = reduce_dim(
             np.vstack((np.asarray(sentence_vectors), np.asarray(icf_sent_embeddings))),
@@ -553,7 +553,9 @@ def domains_clustering():
             sents, pre_config["word_filtering"], pre_config["reduce_method"]
         )
 
-        sent_embeddings = sentence_vectorize(pre_config["reduce_method"], sents, vocab)
+        sent_embeddings = sentence_vectorize(
+            pre_config["reduce_method"], pre_config["model"], sents, vocab
+        )
 
         results.extend(
             Parallel(n_jobs=-1)(
@@ -613,7 +615,9 @@ def items_clustering():
             sents, pre_config["word_filtering"], pre_config["reduce_method"]
         )
 
-        sent_embeddings = sentence_vectorize(pre_config["reduce_method"], sents, vocab)
+        sent_embeddings = sentence_vectorize(
+            pre_config["reduce_method"], pre_config["model"], sents, vocab
+        )
 
         results.extend(
             Parallel(n_jobs=-1)(
