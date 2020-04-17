@@ -616,7 +616,7 @@ def items_clustering():
         sent_embeddings = sentence_vectorize(pre_config["reduce_method"], sents, vocab)
 
         results.extend(
-            Parallel(n_jobs=1)(
+            Parallel(n_jobs=-1)(
                 launch_from_config(
                     dict(config), pre_config, results_dir, vocab, sents, sent_embeddings
                 )
@@ -634,5 +634,5 @@ def items_clustering():
 
 
 if __name__ == "__main__":
-    # domains_clustering()
+    domains_clustering()
     items_clustering()
