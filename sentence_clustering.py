@@ -241,7 +241,7 @@ def run_clustering(
             pre_config["reduce_method"], pre_config["model"], icf_sents, vocab
         )
         total_sents = reduce_dim(
-            np.vstack((np.asarray(sentence_vectors), np.asarray(icf_sent_embeddings))),
+            np.vstack((sentence_vectors, icf_sent_embeddings)),
             config["reduced_dim"],
             apply=True,
         )
@@ -473,7 +473,7 @@ def reduce_dim(sent_embeddings, reduced_dim, apply=True):
                 n_components=int(reduced_dim.split("_")[-1]), init="pca"
             ).fit_transform(sent_embeddings)
 
-    return sent_embeddings
+    return np.asarray(sent_embeddings)
 
 
 @delayed
