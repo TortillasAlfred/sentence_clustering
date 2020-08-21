@@ -18,9 +18,9 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
-import fasttext
-import re
 from matplotlib import rcParams
+
+from sklearn.cluster import AgglomerativeClustering
 
 rcParams.update({"figure.autolayout": True})
 
@@ -218,6 +218,11 @@ def get_clustering_obj(method, clusters):
         )
     elif method == "nearest_neighbor":
         return None
+    elif "hierarchical" in method:
+        links = {"ward": "ward", "max": "complete", "min": "single"}
+        return AgglomerativeClustering(
+            n_clusters=clusters, linkage=links[method.split("_")[2]]
+        )
     else:
         raise ValueError("Unknown clustering method")
 
@@ -259,7 +264,31 @@ def run_clustering(
         labels = clustering_obj.fit_predict(total_sents, sample_weight=sent_weights)[
             :n_sents
         ]
+    elif "hierarchical_icf" in method:
+        icf_sents = [term for term_set in icf_terms().values() for term in term_set]
+        vocab, icf_sents = preprocess(icf_sents, "none", pre_config["reduce_method"])
+        icf_sent_embeddings = sentence_vectorize(
+            pre_config["reduce_method"], pre_config["model"], icf_sents, vocab
+        )
+        total_sents = reduce_dim(
+            np.vstack((sentence_vectors, icf_sent_embeddings)),
+            config["reduced_dim"],
+            apply=True,
+        )
 
+        n_sents = len(sentences)
+        sentence_vectors = total_sents[:n_sents]
+
+        icf_weight = float(method.split("_")[-1])
+        sent_weights = [0] * len(total_sents)
+        sent_weights[:n_sents] = [(1.0 - icf_weight) / len(sentences)] * n_sents
+        sent_weights[n_sents:] = [icf_weight / len(icf_sents)] * (
+            len(total_sents) - n_sents
+        )
+
+        labels = clustering_obj.fit_predict(total_sents, sample_weight=sent_weights)[
+            :n_sents
+        ]
     elif method == "nearest_neighbor":
         load_path = save_path.replace("items", "domains")
         load_path = load_path.replace(
@@ -509,17 +538,19 @@ def get_hparams():
 
     hparams["clusters"] = list(range(4, 8))
     hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10"]
-    hparams["method"] = ["kmeans_icf_0.1", "kmeans_icf_0.5", "kmeans_icf_0.9", "kmeans"]
+    hparams["method"] = [
+        "hierarchical_icf_ward_0.1",
+        "hierarchical_icf_max_0.1",
+        "hierarchical_icf_min_0.1",
+    ]
 
     pre_hparams = OrderedDict()
 
     pre_hparams["word_filtering"] = ["none"]
-    pre_hparams["reduce_method"] = ["mean", "sent"]
+    pre_hparams["reduce_method"] = ["sent"]
     pre_hparams["model"] = [
         "distilbert-base-nli-mean-tokens",
-        "distilbert-base-nli-stsb-mean-tokens",
         "bert-large-nli-mean-tokens",
-        "bert-large-nli-stsb-mean-tokens",
     ]
 
     return hparams, pre_hparams
@@ -589,15 +620,8 @@ def items_clustering():
 
     results = []
 
-    items_only_filters = [
-        "automatic_filtering_10",
-        "automatic_filtering_15",
-        "automatic_filtering_20",
-        "automatic_filtering_25",
-    ]
+    items_only_filters = ["automatic_filtering_10"]
     pre_hparams["word_filtering"].extend(items_only_filters)
-
-    hparams["method"].append("nearest_neighbor")
 
     all_configs = list(
         product(*[[(key, val) for val in vals] for key, vals in hparams.items()])
