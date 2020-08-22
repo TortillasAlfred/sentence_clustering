@@ -279,16 +279,7 @@ def run_clustering(
         n_sents = len(sentences)
         sentence_vectors = total_sents[:n_sents]
 
-        icf_weight = float(method.split("_")[-1])
-        sent_weights = [0] * len(total_sents)
-        sent_weights[:n_sents] = [(1.0 - icf_weight) / len(sentences)] * n_sents
-        sent_weights[n_sents:] = [icf_weight / len(icf_sents)] * (
-            len(total_sents) - n_sents
-        )
-
-        labels = clustering_obj.fit_predict(total_sents, sample_weight=sent_weights)[
-            :n_sents
-        ]
+        labels = clustering_obj.fit_predict(total_sents)[:n_sents]
     elif method == "nearest_neighbor":
         load_path = save_path.replace("items", "domains")
         load_path = load_path.replace(
@@ -539,9 +530,9 @@ def get_hparams():
     hparams["clusters"] = list(range(4, 8))
     hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10"]
     hparams["method"] = [
-        "hierarchical_icf_ward_0.1",
-        "hierarchical_icf_max_0.1",
-        "hierarchical_icf_min_0.1",
+        "hierarchical_icf_ward",
+        "hierarchical_icf_max",
+        "hierarchical_icf_min",
     ]
 
     pre_hparams = OrderedDict()
