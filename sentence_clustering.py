@@ -19,6 +19,7 @@ from scipy.spatial.distance import cdist
 from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
 from matplotlib import rcParams
+import re
 
 from sklearn.cluster import AgglomerativeClustering
 
