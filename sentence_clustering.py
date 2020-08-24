@@ -49,11 +49,11 @@ def load_all_csv_rows(file_path):
 
 
 def load_all_domains():
-    return load_all_csv_rows("Domain-mobility-test-RA1.csv")
+    return load_all_csv_rows("Full data domains.csv")
 
 
 def load_all_items():
-    return load_all_csv_rows("Mobility_item_test_RA.csv")
+    return load_all_csv_rows("Full data items.csv")
 
 
 def create_folder_for_config(config, pre_config, base_path):
