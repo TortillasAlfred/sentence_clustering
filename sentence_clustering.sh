@@ -1,5 +1,5 @@
 #!/bin/bash                                      
-#SBATCH --account=def-adurand                                 # Account with resources
+#SBATCH --account=def-corbeilj                                # Account with resources
 #SBATCH --cpus-per-task=16                                    # Number of CPUs
 #SBATCH --mem=100G                                            # memory (per node)
 #SBATCH --time=0-12:00                                        # time (DD-HH:MM)
