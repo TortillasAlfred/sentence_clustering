@@ -534,12 +534,14 @@ def get_hparams():
         "hierarchical_icf_ward",
         "hierarchical_icf_max",
         "hierarchical_icf_min",
+        "kmeans_icf_0.5",
+        "kmeans",
     ]
 
     pre_hparams = OrderedDict()
 
     pre_hparams["word_filtering"] = ["none"]
-    pre_hparams["reduce_method"] = ["sent"]
+    pre_hparams["reduce_method"] = ["sent", "mean"]
     pre_hparams["model"] = [
         "distilbert-base-nli-mean-tokens",
         "bert-large-nli-mean-tokens",
@@ -612,7 +614,12 @@ def items_clustering():
 
     results = []
 
-    items_only_filters = ["automatic_filtering_10"]
+    items_only_filters = [
+        "automatic_filtering_10",
+        "automatic_filtering_15",
+        "automatic_filtering_20",
+        "automatic_filtering_25",
+    ]
     pre_hparams["word_filtering"].extend(items_only_filters)
 
     all_configs = list(
