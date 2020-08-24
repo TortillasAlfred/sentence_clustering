@@ -38,8 +38,8 @@ def icf_terms():
     return icf_dict
 
 
-def load_all_csv_rows(file_path):
-    with open(file_path, encoding="utf8") as csvfile:
+def load_all_csv_rows(file_path, encoding="utf8"):
+    with open(file_path, encoding=encoding) as csvfile:
         reader = csv.reader(csvfile)
         all_rows = []
         for row in reader:
@@ -49,11 +49,11 @@ def load_all_csv_rows(file_path):
 
 
 def load_all_domains():
-    return load_all_csv_rows("Full data domains.csv")
+    return load_all_csv_rows("Full data domains.csv", encoding="ISO-8859-1")
 
 
 def load_all_items():
-    return load_all_csv_rows("Full data items.csv")
+    return load_all_csv_rows("Full data items.csv", encoding="Windows-1252")
 
 
 def create_folder_for_config(config, pre_config, base_path):
