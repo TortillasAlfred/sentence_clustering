@@ -553,22 +553,25 @@ def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddi
 def get_hparams():
     hparams = OrderedDict()
 
-    hparams["clusters"] = list(range(4, 8))
-    hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10"]
+    # hparams["clusters"] = list(range(4, 8))
+    hparams["clusters"] = [5, 6]
+    # hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10"]
+    hparams["reduced_dim"] = ["pca_5", "pca_10"]
     hparams["method"] = [
-        "hierarchical_icf_ward",
-        "hierarchical_icf_max",
-        "hierarchical_icf_min",
+        # "hierarchical_icf_ward",
+        # "hierarchical_icf_max",
+        # "hierarchical_icf_min",
         "kmeans_icf_0.5",
-        "kmeans",
+        # "kmeans",
     ]
 
     pre_hparams = OrderedDict()
 
     pre_hparams["word_filtering"] = ["none"]
-    pre_hparams["reduce_method"] = ["sent", "mean"]
+    # pre_hparams["reduce_method"] = ["sent", "mean"]
+    pre_hparams["reduce_method"] = ["sent"]
     pre_hparams["model"] = [
-        "distilbert-base-nli-mean-tokens",
+        # "distilbert-base-nli-mean-tokens",
         "bert-large-nli-mean-tokens",
     ]
 
@@ -640,9 +643,9 @@ def items_clustering():
     results = []
 
     items_only_filters = [
-        "automatic_filtering_10",
+        # "automatic_filtering_10",
         "automatic_filtering_20",
-        "automatic_filtering_30",
+        # "automatic_filtering_30",
     ]
     pre_hparams["word_filtering"].extend(items_only_filters)
 
