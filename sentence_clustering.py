@@ -239,9 +239,13 @@ def run_clustering(
     save_path,
 ):
     clustering_obj = get_clustering_obj(method, clusters)
+    icf_raw_sents = None
+    icf_labels = None
+    icf_sent_embeddings = None
 
     if "kmeans_icf" in method:
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
+        icf_raw_sents = ["(ICF TERM) " + " ".join(sent) for sent in icf_sents]
         vocab, icf_sents = preprocess(icf_sents, "none", pre_config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
             pre_config["reduce_method"], pre_config["model"], icf_sents, vocab
@@ -262,11 +266,12 @@ def run_clustering(
             len(total_sents) - n_sents
         )
 
-        labels = clustering_obj.fit_predict(total_sents, sample_weight=sent_weights)[
-            :n_sents
-        ]
+        labels = clustering_obj.fit_predict(total_sents, sample_weight=sent_weights)
+        icf_labels = labels[n_sents:]
+        labels = labels[:n_sents]
     elif "hierarchical_icf" in method:
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
+        icf_raw_sents = ["(ICF TERM) " + " ".join(sent) for sent in icf_sents]
         vocab, icf_sents = preprocess(icf_sents, "none", pre_config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
             pre_config["reduce_method"], pre_config["model"], icf_sents, vocab
@@ -280,7 +285,9 @@ def run_clustering(
         n_sents = len(sentences)
         sentence_vectors = total_sents[:n_sents]
 
-        labels = clustering_obj.fit_predict(total_sents)[:n_sents]
+        labels = clustering_obj.fit_predict(total_sents)
+        icf_labels = labels[n_sents:]
+        labels = labels[:n_sents]
     elif method == "nearest_neighbor":
         load_path = save_path.replace("items", "domains")
         load_path = load_path.replace(
@@ -305,16 +312,28 @@ def run_clustering(
     else:
         score = silhouette_score(sentence_vectors, labels, metric="cosine")
 
-    return score, labels, sentence_vectors
+    return (
+        score,
+        labels,
+        sentence_vectors,
+        icf_raw_sents,
+        icf_sent_embeddings,
+        icf_labels,
+    )
 
 
-def get_rows(sentences, sentence_vectors, labels):
+def get_rows(sentences, sentence_vectors, labels, icf_sents, icf_vectors, icf_labels):
     class_vectors = defaultdict(list)
     class_sentences = defaultdict(list)
 
     for sentence, vector, label in zip(sentences, sentence_vectors, labels):
         class_vectors[label].append(vector)
         class_sentences[label].append(sentence)
+
+    if icf_sents:
+        for sentence, vector, label in zip(icf_sents, icf_vectors, icf_labels):
+            class_vectors[label].append(vector)
+            class_sentences[label].append(sentence)
 
     classes = {}
 
@@ -338,7 +357,9 @@ def get_rows(sentences, sentence_vectors, labels):
     return output
 
 
-def save_results(sentences, sentence_vectors, labels, save_path):
+def save_results(
+    sentences, sentence_vectors, labels, save_path, icf_sents, icf_vectors, icf_labels
+):
     # PLOT CLUSTERS
     reduced_vectors = PCA(n_components=2).fit_transform(sentence_vectors)
 
@@ -358,7 +379,9 @@ def save_results(sentences, sentence_vectors, labels, save_path):
     plt.savefig(os.path.join(save_path, "tsne_clusters.png"))
     plt.close()
 
-    rows_data = get_rows(sentences, sentence_vectors, labels)
+    rows_data = get_rows(
+        sentences, sentence_vectors, labels, icf_sents, icf_vectors, icf_labels
+    )
 
     is_domain_clustering = "domains" in save_path
 
@@ -507,7 +530,7 @@ def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddi
         sent_embeddings, config["reduced_dim"], apply="icf" not in config["method"]
     )
 
-    score, labels, sent_embeddings = run_clustering(
+    score, labels, sent_embeddings, icf_sents, icf_vectors, icf_labels = run_clustering(
         config["method"],
         config["clusters"],
         sents,
@@ -518,7 +541,9 @@ def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddi
         save_path,
     )
 
-    save_results(sents, sent_embeddings, labels, save_path)
+    save_results(
+        sents, sent_embeddings, labels, save_path, icf_sents, icf_vectors, icf_labels,
+    )
 
     config.update(pre_config)
 
