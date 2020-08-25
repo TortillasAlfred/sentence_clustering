@@ -616,7 +616,8 @@ def items_clustering():
 
     items_only_filters = [
         "automatic_filtering_10",
-        "automatic_filtering_20" "automatic_filtering_30",
+        "automatic_filtering_20",
+        "automatic_filtering_30",
     ]
     pre_hparams["word_filtering"].extend(items_only_filters)
 
