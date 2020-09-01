@@ -245,7 +245,7 @@ def run_clustering(
 
     if "kmeans_icf" in method:
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
-        icf_raw_sents = ["(ICF TERM) " + " ".join(sent) for sent in icf_sents]
+        icf_raw_sents = [("(ICF TERM) " + sent, sent.split(" ")) for sent in icf_sents]
         vocab, icf_sents = preprocess(icf_sents, "none", pre_config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
             pre_config["reduce_method"], pre_config["model"], icf_sents, vocab
@@ -258,6 +258,7 @@ def run_clustering(
 
         n_sents = len(sentences)
         sentence_vectors = total_sents[:n_sents]
+        icf_sent_embeddings = total_sents[n_sents:]
 
         icf_weight = float(method.split("_")[-1])
         sent_weights = [0] * len(total_sents)
@@ -271,7 +272,7 @@ def run_clustering(
         labels = labels[:n_sents]
     elif "hierarchical_icf" in method:
         icf_sents = [term for term_set in icf_terms().values() for term in term_set]
-        icf_raw_sents = ["(ICF TERM) " + " ".join(sent) for sent in icf_sents]
+        icf_raw_sents = [("(ICF TERM) " + sent, sent.split(" ")) for sent in icf_sents]
         vocab, icf_sents = preprocess(icf_sents, "none", pre_config["reduce_method"])
         icf_sent_embeddings = sentence_vectorize(
             pre_config["reduce_method"], pre_config["model"], icf_sents, vocab
@@ -284,6 +285,7 @@ def run_clustering(
 
         n_sents = len(sentences)
         sentence_vectors = total_sents[:n_sents]
+        icf_sent_embeddings = total_sents[n_sents:]
 
         labels = clustering_obj.fit_predict(total_sents)
         icf_labels = labels[n_sents:]
