@@ -3,5 +3,5 @@ scikit-learn
 torch
 matplotlib
 joblib
-sentence_transformers
+sentence-transformers
 numpy
