@@ -1,0 +1,7 @@
+torchtext
+scikit-learn
+torch
+matplotlib
+joblib
+sentence_transformers
+numpy
