@@ -7,30 +7,43 @@ from sentence_transformers import (
     evaluation,
     losses,
 )
+from itertools import product
 from torch.utils.data import DataLoader
 
 
-def get_examples_from_data(data):
+def get_examples_from_data(data, train):
     examples = []
 
     # Type 1 : 2 kept from same cluster, label = 1
+    type1 = []
     for cluster in data["kept"]:
         for i in range(len(cluster)):
             for j in range(i + 1, len(cluster)):
-                examples.append([cluster[i], cluster[j], 1])
+                type1.append([cluster[i], cluster[j], 1])
 
     # Type 2 : 1 excluded & 1 kept from same cluster, label = 0
+    type2 = []
     for kept_cluster, excluded_cluster in zip(data["kept"], data["excluded"]):
         for kept in kept_cluster:
             for excluded in excluded_cluster:
-                examples.append([kept, excluded, 0])
+                type2.append([kept, excluded, 0])
 
     # Type 3 : 2 kept from different clusters, label = 0
+    type3 = []
     for cluster_i in range(len(data["kept"])):
         for cluster_j in range(cluster_i + 1, len(data["kept"])):
             for item_i in data["kept"][cluster_i]:
                 for item_j in data["kept"][cluster_j]:
-                    examples.append([item_i, item_j, 0])
+                    type3.append([item_i, item_j, 0])
+
+    if train:
+        n_repeats_positive = int((len(type2) + len(type3)) / len(type1))
+        examples.extend(type1 * n_repeats_positive)
+    else:
+        examples.extend(type1)
+
+    examples.extend(type2)
+    examples.extend(type3)
 
     return examples
 
@@ -41,8 +54,8 @@ def extract_examples(set):
     with open(f"expert_annotations/{set}/valid.pck", "rb") as f:
         valid_data = pickle.load(f)
 
-    train_examples = get_examples_from_data(train_data)
-    valid_examples = get_examples_from_data(valid_data)
+    train_examples = get_examples_from_data(train_data, train=True)
+    valid_examples = get_examples_from_data(valid_data, train=False)
 
     return train_examples, valid_examples
 
@@ -65,7 +78,9 @@ def get_experimental_setup():
     ]
 
     # Get evaluator from valid data
-    evaluator = evaluation.EmbeddingSimilarityEvaluator(*zip(*valid_examples))
+    evaluator = evaluation.BinaryClassificationEvaluator(
+        *zip(*valid_examples), batch_size=64
+    )
 
     return train_examples, evaluator
 
@@ -74,21 +89,30 @@ def main(model_name, loss, batch_size):
     train_examples, evaluator = get_experimental_setup()
     model = SentenceTransformer(model_name)
     train_dataset = SentencesDataset(train_examples, model)
-    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size)
+    train_dataloader = DataLoader(
+        train_dataset, shuffle=True, batch_size=batch_size, num_workers=8
+    )
 
     model.fit(
         [(train_dataloader, loss(model=model))],
         evaluator=evaluator,
-        evaluation_steps=400,
-        warmup_steps=4000,
+        evaluation_steps=300,
+        warmup_steps=3000,
         epochs=2,
         output_path=f"./best_finetuned_models/{model_name}/{str(loss)}/",
+        output_path_ignore_not_empty=True,
     )
 
 
 if __name__ == "__main__":
-    model = "distilbert-base-uncased"
-    loss = losses.ContrastiveLoss
+    models = [
+        "bert-base-nli-stsb-mean-tokens",
+        "bert-base-nli-mean-tokens",
+        "distilbert-base-nli-stsb-mean-tokens",
+        "distilbert-base-nli-mean-tokens",
+    ]
+    loss_functions = [losses.OnlineContrastiveLoss, losses.ContrastiveLoss]
     batch_size = 64
 
-    main(model, loss, batch_size)
+    for model, loss in product(models, loss_functions):
+        main(model, loss, batch_size)
