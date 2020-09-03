@@ -14,10 +14,14 @@ iter3_results
 iter4_results
 iter5_results
 iter6_results
+iter7_results
+april_3
 *.csv
 best_finetuned_models
 expert_annotations
 
+*.png
+*.pck
 *.aux
 *_latexmk
 *.fls
