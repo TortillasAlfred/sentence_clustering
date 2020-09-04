@@ -88,7 +88,7 @@ if __name__ == "__main__":
         "distilbert-base-nli-stsb-mean-tokens",
         "distilbert-base-nli-mean-tokens",
     ]
-    loss_functions = [losses.OnlineContrastiveLoss, losses.ContrastiveLoss]
+    loss_functions = [losses.OnlineContrastiveLoss]
     items = load_all_items()
     items = [" ".join(item.split()) for item in items]
     raws = [False, True]
