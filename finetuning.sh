@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --account=def-adurand
+#SBATCH --account=def-lulam50
 #SBATCH --cpus-per-task=10
 #SBATCH --mem=10G
 #SBATCH --time=03:00:00
