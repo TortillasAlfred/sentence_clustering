@@ -38,9 +38,9 @@ def load_all_items():
     return load_all_csv_rows("Full data items.csv", encoding="Windows-1252")
 
 
-def main(model_name, loss, items):
+def main(model_name, loss, items, raw):
     os.makedirs(
-        f"embeddings_quality_output/{model_name}/{str(loss)}",
+        f"embeddings_quality_output/{model_name}/{str(loss)}/{'raw' if raw else 'pretrained'}",
         exist_ok=True,
     )
     model = SentenceTransformer(f"./best_finetuned_models/{model_name}/{str(loss)}/")
@@ -67,7 +67,7 @@ def main(model_name, loss, items):
     for pertinent_sent, cos_distances in zip(pertinent_sents, cos_dists):
         ordered_args = cos_distances.argsort()
         with open(
-            f"embeddings_quality_output/{model_name}/{str(loss)}/{pertinent_sent}.csv",
+            f"embeddings_quality_output/{model_name}/{str(loss)}/{'raw' if raw else 'pretrained'}/{pertinent_sent}.csv",
             "w",
         ) as f:
             writer = csv.writer(f)
@@ -86,6 +86,7 @@ if __name__ == "__main__":
     loss_functions = [losses.OnlineContrastiveLoss, losses.ContrastiveLoss]
     items = load_all_items()
     items = [" ".join(item.split()) for item in items]
+    raws = [False, True]
 
-    for model, loss in product(models, loss_functions):
-        main(model, loss, items)
+    for model, loss, raw in product(models, loss_functions, raws):
+        main(model, loss, items, raw)
