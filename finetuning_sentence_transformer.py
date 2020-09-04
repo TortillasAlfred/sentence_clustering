@@ -71,6 +71,10 @@ def get_experimental_setup():
     train_examples = train_items + train_domains
     valid_examples = valid_items + valid_domains
 
+    print(
+        f"{len(train_examples)} training examples to {len(valid_examples)} valid examples"
+    )
+
     # Postprocess train examples to correct format
     train_examples = [
         InputExample(texts=[sent1, sent2], label=label)
