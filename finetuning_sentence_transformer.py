@@ -100,8 +100,8 @@ def main(model_name, loss, batch_size):
     model.fit(
         [(train_dataloader, loss(model=model))],
         evaluator=evaluator,
-        evaluation_steps=200,
-        warmup_steps=2000,
+        evaluation_steps=300,
+        warmup_steps=3000,
         epochs=1,
         output_path=f"./best_finetuned_models/{model_name}/{str(loss)}/",
         output_path_ignore_not_empty=True,
