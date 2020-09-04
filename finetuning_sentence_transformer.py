@@ -83,7 +83,7 @@ def get_experimental_setup():
 
     # Get evaluator from valid data
     evaluator = evaluation.BinaryClassificationEvaluator(
-        *zip(*valid_examples), batch_size=64
+        *zip(*valid_examples), batch_size=128
     )
 
     return train_examples, evaluator
@@ -94,15 +94,17 @@ def main(model_name, loss, batch_size):
     model = SentenceTransformer(model_name)
     train_dataset = SentencesDataset(train_examples, model)
     train_dataloader = DataLoader(
-        train_dataset, shuffle=True, batch_size=batch_size, num_workers=8
+        train_dataset, shuffle=True, batch_size=batch_size, num_workers=10
     )
 
     model.fit(
         [(train_dataloader, loss(model=model))],
         evaluator=evaluator,
         evaluation_steps=300,
-        warmup_steps=3000,
-        epochs=1,
+        warmup_steps=6000,
+        weight_decay=0.1,
+        optimizer_params={"lr": 0.00001, "eps": 0.000001, "correct_bias": False},
+        epochs=2,
         output_path=f"./best_finetuned_models/{model_name}/{str(loss)}/",
         output_path_ignore_not_empty=True,
     )
