@@ -96,9 +96,9 @@ def main(model_name, loss, batch_size):
     model.fit(
         [(train_dataloader, loss(model=model))],
         evaluator=evaluator,
-        evaluation_steps=300,
-        warmup_steps=3000,
-        epochs=2,
+        evaluation_steps=200,
+        warmup_steps=2000,
+        epochs=1,
         output_path=f"./best_finetuned_models/{model_name}/{str(loss)}/",
         output_path_ignore_not_empty=True,
     )
@@ -111,7 +111,7 @@ if __name__ == "__main__":
         "distilbert-base-nli-stsb-mean-tokens",
         "distilbert-base-nli-mean-tokens",
     ]
-    loss_functions = [losses.OnlineContrastiveLoss, losses.ContrastiveLoss]
+    loss_functions = [losses.OnlineContrastiveLoss]
     batch_size = 64
 
     for model, loss in product(models, loss_functions):
