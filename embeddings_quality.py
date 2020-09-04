@@ -43,7 +43,12 @@ def main(model_name, loss, items, raw):
         f"embeddings_quality_output/{model_name}/{str(loss)}/{'raw' if raw else 'pretrained'}",
         exist_ok=True,
     )
-    model = SentenceTransformer(f"./best_finetuned_models/{model_name}/{str(loss)}/")
+    if raw:
+        model = SentenceTransformer(model_name)
+    else:
+        model = SentenceTransformer(
+            f"./best_finetuned_models/{model_name}/{str(loss)}/"
+        )
 
     # (item, embedding) collection
     item_embeddings = model.encode(
