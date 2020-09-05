@@ -3,12 +3,21 @@ import pickle
 from sentence_transformers import (
     SentenceTransformer,
     SentencesDataset,
+    ParallelSentencesDataset,
     InputExample,
     evaluation,
     losses,
 )
-from itertools import product
+import csv
+import torch
 from torch.utils.data import DataLoader
+from sklearn.metrics.pairwise import cosine_distances
+import numpy as np
+from itertools import product
+from argparse import ArgumentParser
+
+np.random.seed(37)
+rng = np.random.default_rng()
 
 
 def get_examples_from_data(data, train):
@@ -60,7 +69,7 @@ def extract_examples(set):
     return train_examples, valid_examples
 
 
-def get_experimental_setup():
+def get_binary_experimental_setup():
     # Items
     train_items, valid_items = extract_examples("items")
 
@@ -89,36 +98,92 @@ def get_experimental_setup():
     return train_examples, evaluator
 
 
-def main(model_name, loss, batch_size):
-    train_examples, evaluator = get_experimental_setup()
+def get_mse_experimental_setup(student_model, teacher_model):
+    dataset = ParallelSentencesDataset(student_model, teacher_model, batch_size=16)
+    for _ in range(200):
+        dataset.load_data("all_data.csv")
+
+    return dataset
+
+
+def get_cosine_experimental_setup(teacher_model):
+    all_data = []
+    with open("all_data.csv", "r") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            all_data.append(row[0])
+
+    # Get embeddings
+    target_embeddings = teacher_model.encode(all_data, convert_to_numpy=True)
+
+    # Get cosine distances
+    dists = cosine_distances(target_embeddings, target_embeddings)
+
+    # Build dataset
+    all_pairs = list(product(np.arange(len(all_data)), np.arange(len(all_data))))
+    sampled_pairs = rng.choice(all_pairs, 500000, replace=False)
+
+    cosine_examples = []
+    for i, j in sampled_pairs:
+        cosine_examples.append(
+            InputExample(texts=[all_data[i], all_data[j]], label=dists[i, j])
+        )
+
+    return cosine_examples
+
+
+def main(model_name, batch_size):
     model = SentenceTransformer(model_name)
-    train_dataset = SentencesDataset(train_examples, model)
-    train_dataloader = DataLoader(
-        train_dataset, shuffle=True, batch_size=batch_size, num_workers=10
+    teacher_model = SentenceTransformer(model_name)
+
+    # Binary loss setting
+    binary_train_examples, evaluator = get_binary_experimental_setup()
+    binary_dataset = SentencesDataset(binary_train_examples, model)
+    binary_dataloader = DataLoader(
+        binary_dataset, shuffle=True, batch_size=batch_size, num_workers=1
     )
 
+    # MSE loss setting
+    # mse_dataset = get_mse_experimental_setup(model, teacher_model)
+    # mse_dataloader = DataLoader(
+    #     mse_dataset, shuffle=True, batch_size=batch_size, num_workers=1
+    # )
+
+    # Cosine loss setting
+    cosine_train_examples = get_cosine_experimental_setup(teacher_model)
+    cosine_dataset = SentencesDataset(cosine_train_examples, model)
+    cosine_dataloader = DataLoader(
+        cosine_dataset, shuffle=True, batch_size=batch_size, num_workers=1
+    )
+
+    # Training
     model.fit(
-        [(train_dataloader, loss(model=model))],
+        [
+            (binary_dataloader, losses.OnlineContrastiveLoss(model=model)),
+            # (mse_dataloader, losses.MSELoss(model=model)),
+            (cosine_dataloader, losses.CosineSimilarityLoss(model=model)),
+        ],
         evaluator=evaluator,
-        evaluation_steps=300,
-        warmup_steps=6000,
-        weight_decay=0.1,
-        optimizer_params={"lr": 0.00001, "eps": 0.000001, "correct_bias": False},
+        evaluation_steps=2500,
+        warmup_steps=5000,
         epochs=2,
-        output_path=f"./best_finetuned_models/{model_name}/{str(loss)}/",
+        output_path=f"./best_finetuned_models/{model_name}/",
         output_path_ignore_not_empty=True,
     )
 
 
 if __name__ == "__main__":
+    argument_parser = ArgumentParser()
+    argument_parser.add_argument("--model", type=int)
+    options = argument_parser.parse_args()
+
+    torch.multiprocessing.set_start_method("forkserver", force=True)
     models = [
         "bert-base-nli-stsb-mean-tokens",
         "bert-base-nli-mean-tokens",
         "distilbert-base-nli-stsb-mean-tokens",
         "distilbert-base-nli-mean-tokens",
     ]
-    loss_functions = [losses.OnlineContrastiveLoss]
-    batch_size = 64
+    batch_size = 16
 
-    for model, loss in product(models, loss_functions):
-        main(model, loss, batch_size)
+    main(models[options.model], batch_size)

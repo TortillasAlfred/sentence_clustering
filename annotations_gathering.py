@@ -5,7 +5,7 @@ import pickle
 import numpy as np
 
 excluded_regex = re.compile(r"(?: ?)<EXCLUDE\/>(?: ?)(.*)")
-np.random.seed(42)
+np.random.seed(3)
 rng = np.random.default_rng()
 
 
