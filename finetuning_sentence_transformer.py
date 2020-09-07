@@ -138,41 +138,67 @@ def main(model_name, batch_size):
     binary_train_examples, evaluator = get_binary_experimental_setup()
     binary_dataset = SentencesDataset(binary_train_examples, model)
     binary_dataloader = DataLoader(
-        binary_dataset, shuffle=True, batch_size=batch_size, 
-num_workers=3
+        binary_dataset, shuffle=True, batch_size=batch_size, num_workers=0
     )
 
     # MSE loss setting
     mse_dataset = get_mse_experimental_setup(model, teacher_model)
     mse_dataloader = DataLoader(
-        mse_dataset, shuffle=True, batch_size=batch_size, 
-num_workers=3
+        mse_dataset, shuffle=True, batch_size=batch_size, num_workers=0
     )
 
     # Cosine loss setting
-    cosine_train_examples = get_cosine_experimental_setup(teacher_model)
+    cosine_train_examples = get_cosine_experimental_setup(model)
     cosine_dataset = SentencesDataset(cosine_train_examples, model)
     cosine_dataloader = DataLoader(
-        cosine_dataset, shuffle=True, batch_size=batch_size, 
-num_workers=3
+        cosine_dataset, shuffle=True, batch_size=batch_size, num_workers=0
     )
 
     # Training
     model.fit(
         [
-            (binary_dataloader, OnlineContrastiveLoss(model=model, 
-weight=0.95)),
-            (mse_dataloader, MSELoss(model=model, weight=0.025)),
-            (cosine_dataloader, CosineSimilarityLoss(model=model, 
-weight=0.025)),
+            (binary_dataloader, ContrastiveLoss(model=model)),
+            (mse_dataloader, MSELoss(model=model, weight=0.5)),
+            (cosine_dataloader, CosineSimilarityLoss(model=model, weight=0.5)),
         ],
         evaluator=evaluator,
         evaluation_steps=1000,
-        warmup_steps=2000,
-        epochs=3,
+        warmup_steps=2500,
+        epochs=2,
         output_path=f"./best_finetuned_models/{model_name}/",
         output_path_ignore_not_empty=True,
     )
+
+
+class ContrastiveLoss(nn.Module):
+    def __init__(
+        self,
+        model,
+        distance_metric=losses.SiameseDistanceMetric.COSINE_DISTANCE,
+        margin=0.5,
+        size_average=True,
+    ):
+        super(ContrastiveLoss, self).__init__()
+        self.distance_metric = distance_metric
+        self.margin = margin
+        self.model = model
+        self.size_average = size_average
+
+    def forward(self, sentence_features, labels):
+        reps = [
+            self.model(sentence_feature)["sentence_embedding"]
+            for sentence_feature in sentence_features
+        ]
+        assert len(reps) == 2
+        rep_anchor, rep_other = reps
+        distances = self.distance_metric(rep_anchor, rep_other)
+        losses = 0.5 * (
+            labels.float() * distances.pow(2)
+            + (1 - labels).float()
+            * torch.nn.functional.relu(self.margin - distances).pow(2)
+        )
+        loss = losses.mean() if self.size_average else losses.sum()
+        return loss
 
 
 class OnlineContrastiveLoss(nn.Module):
@@ -266,6 +292,6 @@ if __name__ == "__main__":
         "distilbert-base-nli-stsb-mean-tokens",
         "distilbert-base-nli-mean-tokens",
     ]
-    batch_size = 64
+    batch_size = 32
 
     main(models[options.model], batch_size)
