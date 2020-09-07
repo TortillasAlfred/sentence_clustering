@@ -10,8 +10,9 @@ from sentence_transformers import (
 )
 import csv
 import torch
+from torch import nn
 from torch.utils.data import DataLoader
-from sklearn.metrics.pairwise import cosine_distances
+from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from itertools import product
 from argparse import ArgumentParser
@@ -99,7 +100,7 @@ def get_binary_experimental_setup():
 
 
 def get_mse_experimental_setup(student_model, teacher_model):
-    dataset = ParallelSentencesDataset(student_model, teacher_model, batch_size=16)
+    dataset = ParallelSentencesDataset(student_model, teacher_model)
     for _ in range(200):
         dataset.load_data("all_data.csv")
 
@@ -117,7 +118,7 @@ def get_cosine_experimental_setup(teacher_model):
     target_embeddings = teacher_model.encode(all_data, convert_to_numpy=True)
 
     # Get cosine distances
-    dists = cosine_distances(target_embeddings, target_embeddings)
+    dists = cosine_similarity(target_embeddings, target_embeddings)
 
     # Build dataset
     all_pairs = list(product(np.arange(len(all_data)), np.arange(len(all_data))))
@@ -140,36 +141,114 @@ def main(model_name, batch_size):
     binary_train_examples, evaluator = get_binary_experimental_setup()
     binary_dataset = SentencesDataset(binary_train_examples, model)
     binary_dataloader = DataLoader(
-        binary_dataset, shuffle=True, batch_size=batch_size, num_workers=1
+        binary_dataset, shuffle=True, batch_size=batch_size, num_workers=3
     )
 
     # MSE loss setting
-    # mse_dataset = get_mse_experimental_setup(model, teacher_model)
-    # mse_dataloader = DataLoader(
-    #     mse_dataset, shuffle=True, batch_size=batch_size, num_workers=1
-    # )
+    mse_dataset = get_mse_experimental_setup(model, teacher_model)
+    mse_dataloader = DataLoader(
+        mse_dataset, shuffle=True, batch_size=batch_size, num_workers=3
+    )
 
     # Cosine loss setting
     cosine_train_examples = get_cosine_experimental_setup(teacher_model)
     cosine_dataset = SentencesDataset(cosine_train_examples, model)
     cosine_dataloader = DataLoader(
-        cosine_dataset, shuffle=True, batch_size=batch_size, num_workers=1
+        cosine_dataset, shuffle=True, batch_size=batch_size, num_workers=3
     )
 
     # Training
     model.fit(
         [
-            (binary_dataloader, losses.OnlineContrastiveLoss(model=model)),
-            # (mse_dataloader, losses.MSELoss(model=model)),
-            (cosine_dataloader, losses.CosineSimilarityLoss(model=model)),
+            (binary_dataloader, OnlineContrastiveLoss(model=model, weight=0.5)),
+            (mse_dataloader, MSELoss(model=model, weight=0.25)),
+            (cosine_dataloader, CosineSimilarityLoss(model=model, weight=0.25)),
         ],
         evaluator=evaluator,
-        evaluation_steps=2500,
-        warmup_steps=5000,
+        evaluation_steps=1250,
+        warmup_steps=2500,
         epochs=2,
         output_path=f"./best_finetuned_models/{model_name}/",
         output_path_ignore_not_empty=True,
     )
+
+
+class OnlineContrastiveLoss(nn.Module):
+    def __init__(
+        self,
+        model,
+        distance_metric=losses.SiameseDistanceMetric.COSINE_DISTANCE,
+        margin: float = 0.5,
+        weight=1.0,
+    ):
+        super(OnlineContrastiveLoss, self).__init__()
+        self.model = model
+        self.margin = margin
+        self.distance_metric = distance_metric
+        self.weight = weight
+
+    def forward(self, sentence_features, labels, size_average=False):
+        embeddings = [
+            self.model(sentence_feature)["sentence_embedding"]
+            for sentence_feature in sentence_features
+        ]
+
+        distance_matrix = self.distance_metric(embeddings[0], embeddings[1])
+        negs = distance_matrix[labels == 0]
+        poss = distance_matrix[labels == 1]
+
+        # select hard positive and hard negative pairs
+        negative_pairs = negs[negs < (poss.max() if len(poss) > 1 else negs.mean())]
+        positive_pairs = poss[poss > (negs.min() if len(negs) > 1 else poss.mean())]
+
+        positive_loss = positive_pairs.pow(2).sum()
+        negative_loss = (
+            torch.nn.functional.relu(self.margin - negative_pairs).pow(2).sum()
+        )
+        loss = positive_loss + negative_loss
+        loss = self.weight * loss
+        return loss
+
+
+class MSELoss(nn.Module):
+    def __init__(self, model, weight=1.0):
+        super(MSELoss, self).__init__()
+        self.model = model
+        self.weight = weight
+
+    def forward(self, sentence_features, labels):
+        rep = self.model(sentence_features[0])["sentence_embedding"]
+        loss_fct = nn.MSELoss()
+        loss = loss_fct(rep, labels)
+        loss = self.weight * loss
+        return loss
+
+
+class CosineSimilarityLoss(nn.Module):
+    def __init__(
+        self,
+        model,
+        loss_fct=nn.MSELoss(),
+        cos_score_transformation=nn.Identity(),
+        weight=1.0,
+    ):
+        super(CosineSimilarityLoss, self).__init__()
+        self.model = model
+        self.loss_fct = loss_fct
+        self.cos_score_transformation = cos_score_transformation
+        self.weight = weight
+
+    def forward(self, sentence_features, labels):
+        embeddings = [
+            self.model(sentence_feature)["sentence_embedding"]
+            for sentence_feature in sentence_features
+        ]
+        output = self.cos_score_transformation(
+            torch.cosine_similarity(embeddings[0], embeddings[1])
+        )
+        loss = self.loss_fct(output, labels.view(-1))
+        loss = self.weight * loss
+        return loss
 
 
 if __name__ == "__main__":
@@ -177,13 +256,14 @@ if __name__ == "__main__":
     argument_parser.add_argument("--model", type=int)
     options = argument_parser.parse_args()
 
-    torch.multiprocessing.set_start_method("forkserver", force=True)
+    torch.multiprocessing.set_start_method("spawn", force=True)
+
     models = [
         "bert-base-nli-stsb-mean-tokens",
         "bert-base-nli-mean-tokens",
         "distilbert-base-nli-stsb-mean-tokens",
         "distilbert-base-nli-mean-tokens",
     ]
-    batch_size = 16
+    batch_size = 32
 
     main(models[options.model], batch_size)
