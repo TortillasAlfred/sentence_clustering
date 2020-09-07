@@ -21,7 +21,7 @@ np.random.seed(37)
 rng = np.random.default_rng()
 
 
-def get_examples_from_data(data, train):
+def get_examples_from_data(data):
     examples = []
 
     # Type 1 : 2 kept from same cluster, label = 1
@@ -46,11 +46,8 @@ def get_examples_from_data(data, train):
                 for item_j in data["kept"][cluster_j]:
                     type3.append([item_i, item_j, 0])
 
-    if train:
-        n_repeats_positive = int((len(type2) + len(type3)) / len(type1))
-        examples.extend(type1 * n_repeats_positive)
-    else:
-        examples.extend(type1)
+    n_repeats_positive = int((len(type2) + len(type3)) / len(type1))
+    examples.extend(type1 * n_repeats_positive)
 
     examples.extend(type2)
     examples.extend(type3)
@@ -64,8 +61,8 @@ def extract_examples(set):
     with open(f"expert_annotations/{set}/valid.pck", "rb") as f:
         valid_data = pickle.load(f)
 
-    train_examples = get_examples_from_data(train_data, train=True)
-    valid_examples = get_examples_from_data(valid_data, train=False)
+    train_examples = get_examples_from_data(train_data)
+    valid_examples = get_examples_from_data(valid_data)
 
     return train_examples, valid_examples
 
@@ -141,33 +138,38 @@ def main(model_name, batch_size):
     binary_train_examples, evaluator = get_binary_experimental_setup()
     binary_dataset = SentencesDataset(binary_train_examples, model)
     binary_dataloader = DataLoader(
-        binary_dataset, shuffle=True, batch_size=batch_size, num_workers=3
+        binary_dataset, shuffle=True, batch_size=batch_size, 
+num_workers=3
     )
 
     # MSE loss setting
     mse_dataset = get_mse_experimental_setup(model, teacher_model)
     mse_dataloader = DataLoader(
-        mse_dataset, shuffle=True, batch_size=batch_size, num_workers=3
+        mse_dataset, shuffle=True, batch_size=batch_size, 
+num_workers=3
     )
 
     # Cosine loss setting
     cosine_train_examples = get_cosine_experimental_setup(teacher_model)
     cosine_dataset = SentencesDataset(cosine_train_examples, model)
     cosine_dataloader = DataLoader(
-        cosine_dataset, shuffle=True, batch_size=batch_size, num_workers=3
+        cosine_dataset, shuffle=True, batch_size=batch_size, 
+num_workers=3
     )
 
     # Training
     model.fit(
         [
-            (binary_dataloader, OnlineContrastiveLoss(model=model, weight=0.5)),
-            (mse_dataloader, MSELoss(model=model, weight=0.25)),
-            (cosine_dataloader, CosineSimilarityLoss(model=model, weight=0.25)),
+            (binary_dataloader, OnlineContrastiveLoss(model=model, 
+weight=0.95)),
+            (mse_dataloader, MSELoss(model=model, weight=0.025)),
+            (cosine_dataloader, CosineSimilarityLoss(model=model, 
+weight=0.025)),
         ],
         evaluator=evaluator,
-        evaluation_steps=1250,
-        warmup_steps=2500,
-        epochs=2,
+        evaluation_steps=1000,
+        warmup_steps=2000,
+        epochs=3,
         output_path=f"./best_finetuned_models/{model_name}/",
         output_path_ignore_not_empty=True,
     )
@@ -264,6 +266,6 @@ if __name__ == "__main__":
         "distilbert-base-nli-stsb-mean-tokens",
         "distilbert-base-nli-mean-tokens",
     ]
-    batch_size = 16
+    batch_size = 64
 
     main(models[options.model], batch_size)

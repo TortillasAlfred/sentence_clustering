@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=def-adurand
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=10G
-#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=10
+#SBATCH --mem=60G
+#SBATCH --time=06:00:00
 #SBATCH --gres=gpu:v100:1
 
 source $HOME/venv/bin/activate
