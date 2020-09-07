@@ -264,6 +264,6 @@ if __name__ == "__main__":
         "distilbert-base-nli-stsb-mean-tokens",
         "distilbert-base-nli-mean-tokens",
     ]
-    batch_size = 32
+    batch_size = 16
 
     main(models[options.model], batch_size)
