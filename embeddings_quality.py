@@ -40,14 +40,14 @@ def load_all_items():
 
 def main(model_name, loss, items, raw):
     os.makedirs(
-        f"embeddings_quality_output/{model_name}/{str(loss)}/{'raw' if raw else 'pretrained'}",
+        f"embeddings_quality_output/{model_name}/{'raw' if raw else 'pretrained'}",
         exist_ok=True,
     )
     if raw:
         model = SentenceTransformer(model_name)
     else:
         model = SentenceTransformer(
-            f"./best_finetuned_models/{model_name}/{str(loss)}/"
+            f"./best_finetuned_models/{model_name}/"
         )
 
     # (item, embedding) collection
@@ -72,7 +72,7 @@ def main(model_name, loss, items, raw):
     for pertinent_sent, cos_distances in zip(pertinent_sents, cos_dists):
         ordered_args = cos_distances.argsort()
         with open(
-            f"embeddings_quality_output/{model_name}/{str(loss)}/{'raw' if raw else 'pretrained'}/{pertinent_sent}.csv",
+            f"embeddings_quality_output/{model_name}/{'raw' if raw else 'pretrained'}/{pertinent_sent}.csv",
             "w",
         ) as f:
             writer = csv.writer(f)
