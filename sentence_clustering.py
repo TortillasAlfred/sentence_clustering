@@ -6,10 +6,9 @@ from itertools import product
 import os
 import pickle
 import shutil
-from sentence2vec import sentence2vec
 from copy import deepcopy
 from sklearn.cluster import KMeans, SpectralClustering
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, f1_score
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -44,7 +43,13 @@ def load_all_csv_rows(file_path, encoding="utf8"):
         reader = csv.reader(csvfile)
         all_rows = []
         for row in reader:
-            all_rows.append(row[0])
+            datum = row[0]
+            if datum[-1] == " ":
+                datum = datum[:-1]
+            if datum[0] == " ":
+                datum = datum[1:]
+
+            all_rows.append(datum)
 
     return all_rows
 
@@ -241,6 +246,7 @@ def run_clustering(
     config,
     pre_config,
     save_path,
+    annotated_data,
 ):
     clustering_obj = get_clustering_obj(method, clusters)
     icf_raw_sents = None
@@ -316,7 +322,8 @@ def run_clustering(
     if len(set(labels)) == 1:
         score = 0.0
     else:
-        score = silhouette_score(sentence_vectors, labels, metric="cosine")
+        # score = silhouette_score(sentence_vectors, labels, metric="cosine")
+        score = get_supervised_score(labels, annotated_data)
 
     return (
         score,
@@ -326,6 +333,56 @@ def run_clustering(
         icf_sent_embeddings,
         icf_labels,
     )
+
+
+def get_annotated_data(set):
+    with open(f"expert_annotations/{set}/all.pck", "rb") as f:
+        annotated_data = pickle.load(f)
+
+    return annotated_data
+
+
+def get_supervised_score(labels, annotated_data):
+    # Map sentences to cluster_idx for each kept/excluded cluster
+    predicted_idxs = {}
+    for key, clusters in annotated_data.items():
+        predicted_idxs[key] = []
+
+        for cluster in clusters:
+            cluster_idxs = []
+
+            for item in cluster:
+                cluster_idxs.append(labels[item])
+
+            predicted_idxs[key].append(cluster_idxs)
+
+    y_true, y_pred = [], []
+    # Type 1 : 2 kept from same cluster, expect equals
+    for cluster in predicted_idxs["kept"]:
+        for i in range(len(cluster)):
+            for j in range(i + 1, len(cluster)):
+                y_pred.append(cluster[i] == cluster[j])
+                y_true.append(True)
+
+    # Type 2 : 1 excluded & 1 kept from same cluster, expect not equals
+    for kept_cluster, excluded_cluster in zip(
+        predicted_idxs["kept"], predicted_idxs["excluded"]
+    ):
+        for kept in kept_cluster:
+            for excluded in excluded_cluster:
+                y_pred.append(kept == excluded)
+                y_true.append(False)
+
+    # Type 3 : 2 kept from different clusters, expect not equals
+    for cluster_i in range(len(predicted_idxs["kept"])):
+        for cluster_j in range(cluster_i + 1, len(predicted_idxs["kept"])):
+            for item_i in predicted_idxs["kept"][cluster_i]:
+                for item_j in predicted_idxs["kept"][cluster_j]:
+                    y_pred.append(item_i == item_j)
+                    y_true.append(False)
+
+    # Return F1 score between target and predicted
+    return f1_score(y_true, y_pred)
 
 
 def get_rows(sentences, sentence_vectors, labels, icf_sents, icf_vectors, icf_labels):
@@ -538,7 +595,9 @@ def reduce_dim(sent_embeddings, reduced_dim, apply=True):
 
 
 @delayed
-def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddings):
+def launch_from_config(
+    config, pre_config, base_path, vocab, sents, sent_embeddings, annotated_data
+):
     save_path = create_folder_for_config(config, pre_config, base_path)
 
     sent_embeddings = reduce_dim(
@@ -554,6 +613,7 @@ def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddi
         config,
         pre_config,
         save_path,
+        annotated_data,
     )
 
     save_results(
@@ -576,13 +636,13 @@ def get_hparams():
 
     hparams["clusters"] = list(range(4, 8))
     hparams["reduced_dim"] = [
+        "umap_5",
+        "umap_10",
+        "umap_50",
         "pca_5",
         "pca_10",
         "pca_50",
         "none",
-        "umap_5",
-        "umap_10",
-        "umap_50",
     ]
     hparams["method"] = [
         "hierarchical_icf_euclidean",
@@ -606,6 +666,38 @@ def get_hparams():
 
 def domains_clustering():
     domains = load_all_domains()
+    annotated_domains = get_annotated_data("domains")
+
+    sents = [sent.replace('"', "") for sent in domains]
+    sents = [sent.replace(",", " ") for sent in sents]
+    sents = [sent.replace("/", " / ") for sent in sents]
+    sents = [sent.replace(".-", " .- ") for sent in sents]
+    sents = [sent.replace(".", " . ") for sent in sents]
+    sents = [sent.replace("'", " ' ") for sent in sents]
+    sents = [sent.replace("\n", "") for sent in sents]
+    sents = [sent.lower() for sent in sents]
+    sents = [" ".join(sent.split()) for sent in sents]
+
+    annotated_domains_idxs = {}
+    for key, key_items in annotated_domains.items():
+        annotated_domains_idxs[key] = []
+
+        for cluster in key_items:
+            annotated_domains_idxs[key].append([])
+            for item in cluster:
+                cleaned_domain = " ".join(item.split())
+                cleaned_domain = cleaned_domain.replace('"', "")
+                cleaned_domain = cleaned_domain.replace(",", " ")
+                cleaned_domain = cleaned_domain.replace("/", " / ")
+                cleaned_domain = cleaned_domain.replace(".-", " .- ")
+                cleaned_domain = cleaned_domain.replace(".", " . ")
+                cleaned_domain = cleaned_domain.replace("  ", " ")
+                cleaned_domain = cleaned_domain.replace("'", " ' ")
+                cleaned_domain = cleaned_domain.lower()
+                if cleaned_domain in sents:
+                    annotated_domains_idxs[key][-1].append(sents.index(cleaned_domain))
+                else:
+                    print(cleaned_domain + ",")
 
     results_dir = "./results/domains"
     if not os.path.isdir(results_dir):
@@ -641,7 +733,13 @@ def domains_clustering():
         results.extend(
             Parallel(n_jobs=-1)(
                 launch_from_config(
-                    dict(config), pre_config, results_dir, vocab, sents, sent_embeddings
+                    dict(config),
+                    pre_config,
+                    results_dir,
+                    vocab,
+                    sents,
+                    sent_embeddings,
+                    annotated_domains,
                 )
                 for config in all_configs
             )
@@ -658,6 +756,38 @@ def domains_clustering():
 
 def items_clustering():
     items = load_all_items()
+    annotated_items = get_annotated_data("items")
+
+    sents = [sent.replace('"', "") for sent in items]
+    sents = [sent.replace(",", " ") for sent in sents]
+    sents = [sent.replace("/", " / ") for sent in sents]
+    sents = [sent.replace(".-", " .- ") for sent in sents]
+    sents = [sent.replace(".", " . ") for sent in sents]
+    sents = [sent.replace("'", " ' ") for sent in sents]
+    sents = [sent.replace("\n", "") for sent in sents]
+    sents = [sent.lower() for sent in sents]
+    sents = [" ".join(sent.split()) for sent in sents]
+
+    annotated_items_idxs = {}
+    for key, key_items in annotated_items.items():
+        annotated_items_idxs[key] = []
+
+        for cluster in key_items:
+            annotated_items_idxs[key].append([])
+            for item in cluster:
+                cleaned_item = " ".join(item.split())
+                cleaned_item = cleaned_item.replace('"', "")
+                cleaned_item = cleaned_item.replace(",", " ")
+                cleaned_item = cleaned_item.replace("/", " / ")
+                cleaned_item = cleaned_item.replace(".-", " .- ")
+                cleaned_item = cleaned_item.replace(".", " . ")
+                cleaned_item = cleaned_item.replace("  ", " ")
+                cleaned_item = cleaned_item.replace("'", " ' ")
+                cleaned_item = cleaned_item.lower()
+                if cleaned_item in sents:
+                    annotated_items_idxs[key][-1].append(sents.index(cleaned_item))
+                else:
+                    print(cleaned_item + ",")
 
     results_dir = "./results/items"
     if not os.path.isdir(results_dir):
@@ -700,7 +830,13 @@ def items_clustering():
         results.extend(
             Parallel(n_jobs=-1)(
                 launch_from_config(
-                    dict(config), pre_config, results_dir, vocab, sents, sent_embeddings
+                    dict(config),
+                    pre_config,
+                    results_dir,
+                    vocab,
+                    sents,
+                    sent_embeddings,
+                    annotated_items_idxs,
                 )
                 for config in all_configs
             )
