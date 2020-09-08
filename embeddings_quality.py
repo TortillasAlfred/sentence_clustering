@@ -38,7 +38,7 @@ def load_all_items():
     return load_all_csv_rows("Full data items.csv", encoding="Windows-1252")
 
 
-def main(model_name, loss, items, raw):
+def main(model_name, items, raw):
     os.makedirs(
         f"embeddings_quality_output/{model_name}/{'raw' if raw else 'pretrained'}",
         exist_ok=True,
@@ -88,10 +88,9 @@ if __name__ == "__main__":
         "distilbert-base-nli-stsb-mean-tokens",
         "distilbert-base-nli-mean-tokens",
     ]
-    loss_functions = [losses.OnlineContrastiveLoss]
     items = load_all_items()
     items = [" ".join(item.split()) for item in items]
     raws = [False, True]
 
-    for model, loss, raw in product(models, loss_functions, raws):
-        main(model, loss, items, raw)
+    for model, raw in product(models, raws):
+        main(model, items, raw)
