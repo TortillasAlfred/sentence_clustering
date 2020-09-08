@@ -20,6 +20,7 @@ from joblib import Parallel, delayed
 from sentence_transformers import SentenceTransformer
 from matplotlib import rcParams
 import re
+import umap
 
 from sklearn.cluster import AgglomerativeClustering
 
@@ -525,6 +526,13 @@ def reduce_dim(sent_embeddings, reduced_dim, apply=True):
             return TSNE(
                 n_components=int(reduced_dim.split("_")[-1]), init="pca"
             ).fit_transform(sent_embeddings)
+        elif "umap" in reduced_dim:
+            return umap.UMAP(
+                n_neighbors=50,
+                n_components=int(reduced_dim.split("_")[-1]),
+                min_dist=0.0,
+                random_state=42,
+            ).fit_transform(sent_embeddings)
 
     return np.asarray(sent_embeddings)
 
@@ -567,7 +575,15 @@ def get_hparams():
     hparams = OrderedDict()
 
     hparams["clusters"] = list(range(4, 8))
-    hparams["reduced_dim"] = ["pca_5", "pca_10", "none"]
+    hparams["reduced_dim"] = [
+        "pca_5",
+        "pca_10",
+        "pca_50",
+        "none",
+        "umap_5",
+        "umap_10",
+        "umap_50",
+    ]
     hparams["method"] = [
         "hierarchical_icf_euclidean",
         "hierarchical_icf_manhattan",
