@@ -158,14 +158,14 @@ def main(model_name, batch_size):
     model.fit(
         [
             (binary_dataloader, ContrastiveLoss(model=model)),
-            (mse_dataloader, MSELoss(model=model, weight=0.05)),
-            (cosine_dataloader, CosineSimilarityLoss(model=model, 
-weight=0.05)),
+            (mse_dataloader, MSELoss(model=model, weight=0.5)),
+            (cosine_dataloader, CosineSimilarityLoss(model=model, weight=0.5)),
         ],
         evaluator=evaluator,
         evaluation_steps=1000,
-        warmup_steps=2500,
+        warmup_steps=1000,
         epochs=1,
+        optimizer_params={"lr": 1e-5, "eps": 1e-8, "correct_bias": False},
         output_path=f"./best_finetuned_models/{model_name}/",
         output_path_ignore_not_empty=True,
     )
