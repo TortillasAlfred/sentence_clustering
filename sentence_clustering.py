@@ -230,9 +230,7 @@ def get_clustering_obj(method, clusters):
     elif method == "nearest_neighbor":
         return None
     elif "hierarchical" in method:
-        return AgglomerativeClustering(
-            n_clusters=clusters, affinity=method.split("_")[2], linkage="single"
-        )
+        return AgglomerativeClustering(n_clusters=clusters, linkage="ward")
     else:
         raise ValueError("Unknown clustering method")
 
@@ -322,8 +320,8 @@ def run_clustering(
     if len(set(labels)) == 1:
         score = 0.0
     else:
-        # score = silhouette_score(sentence_vectors, labels, metric="cosine")
-        score = get_supervised_score(labels, annotated_data)
+        score = silhouette_score(sentence_vectors, labels, metric="cosine")
+        score += get_supervised_score(labels, annotated_data)
 
     return (
         score,
@@ -645,9 +643,7 @@ def get_hparams():
         "none",
     ]
     hparams["method"] = [
-        "hierarchical_icf_euclidean",
-        "hierarchical_icf_manhattan",
-        "hierarchical_icf_cosine",
+        "hierarchical",
     ]
 
     pre_hparams = OrderedDict()
