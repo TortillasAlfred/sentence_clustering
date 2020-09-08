@@ -198,7 +198,11 @@ def get_vocab_counter(sents, word_filtering):
 def preprocess(sents, word_filtering, vectors):
     vocab_counter, sents = get_vocab_counter(sents, word_filtering)
 
-    vocab = Vocab(vocab_counter, vectors=None, specials=[],)
+    vocab = Vocab(
+        vocab_counter,
+        vectors=None,
+        specials=[],
+    )
 
     return vocab, sents
 
@@ -220,9 +224,8 @@ def get_clustering_obj(method, clusters):
     elif method == "nearest_neighbor":
         return None
     elif "hierarchical" in method:
-        links = {"ward": "ward", "max": "complete", "min": "single"}
         return AgglomerativeClustering(
-            n_clusters=clusters, linkage=links[method.split("_")[2]]
+            n_clusters=clusters, affinity=method.split("_")[2], linkage="single"
         )
     else:
         raise ValueError("Unknown clustering method")
@@ -436,7 +439,9 @@ def sentence_vectorize(reduce_method, model, sents, vocab):
         return sentence_embeddings
     else:
         token_embeddings = bert_model.encode(
-            bert_sents, output_value="token_embeddings", show_progress_bar=False,
+            bert_sents,
+            output_value="token_embeddings",
+            show_progress_bar=False,
         )
 
         def bert_mean_tokens(sent_embedding, weights=None):
@@ -544,7 +549,13 @@ def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddi
     )
 
     save_results(
-        sents, sent_embeddings, labels, save_path, icf_sents, icf_vectors, icf_labels,
+        sents,
+        sent_embeddings,
+        labels,
+        save_path,
+        icf_sents,
+        icf_vectors,
+        icf_labels,
     )
 
     config.update(pre_config)
@@ -555,26 +566,23 @@ def launch_from_config(config, pre_config, base_path, vocab, sents, sent_embeddi
 def get_hparams():
     hparams = OrderedDict()
 
-    # hparams["clusters"] = list(range(4, 8))
-    hparams["clusters"] = [5, 6]
-    # hparams["reduced_dim"] = ["pca_2", "pca_5", "pca_10"]
-    hparams["reduced_dim"] = ["pca_5", "pca_10"]
+    hparams["clusters"] = list(range(4, 8))
+    hparams["reduced_dim"] = ["pca_5", "pca_10", "none"]
     hparams["method"] = [
-        # "hierarchical_icf_ward",
-        # "hierarchical_icf_max",
-        # "hierarchical_icf_min",
-        "kmeans_icf_0.5",
-        # "kmeans",
+        "hierarchical_icf_euclidean",
+        "hierarchical_icf_manhattan",
+        "hierarchical_icf_cosine",
     ]
 
     pre_hparams = OrderedDict()
 
     pre_hparams["word_filtering"] = ["none"]
-    # pre_hparams["reduce_method"] = ["sent", "mean"]
     pre_hparams["reduce_method"] = ["sent"]
     pre_hparams["model"] = [
-        # "distilbert-base-nli-mean-tokens",
-        "bert-large-nli-mean-tokens",
+        "distilbert-base-nli-mean-tokens",
+        "bert-base-nli-mean-tokens",
+        "distilbert-base-nli-stsb-mean-tokens",
+        "bert-base-nli-stsb-mean-tokens",
     ]
 
     return hparams, pre_hparams
@@ -645,9 +653,9 @@ def items_clustering():
     results = []
 
     items_only_filters = [
-        # "automatic_filtering_10",
+        "automatic_filtering_10",
         "automatic_filtering_20",
-        # "automatic_filtering_30",
+        "automatic_filtering_30",
     ]
     pre_hparams["word_filtering"].extend(items_only_filters)
 
