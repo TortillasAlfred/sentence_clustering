@@ -739,7 +739,7 @@ def domains_clustering():
                     vocab,
                     sents,
                     sent_embeddings,
-                    annotated_domains,
+                    annotated_domains_idxs,
                 )
                 for config in all_configs
             )
