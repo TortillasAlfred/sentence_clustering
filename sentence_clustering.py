@@ -643,7 +643,7 @@ def get_hparams():
         "none",
     ]
     hparams["method"] = [
-        "hierarchical",
+        "hierarchical_icf",
     ]
 
     pre_hparams = OrderedDict()
