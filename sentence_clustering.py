@@ -320,8 +320,8 @@ def run_clustering(
     if len(set(labels)) == 1:
         score = 0.0
     else:
-        score = silhouette_score(sentence_vectors, labels, metric="cosine")
-        score += get_supervised_score(labels, annotated_data)
+        # score = silhouette_score(sentence_vectors, labels, metric="cosine")
+        score = get_supervised_score(labels, sentences, annotated_data)
 
     return (
         score,
@@ -340,7 +340,7 @@ def get_annotated_data(set):
     return annotated_data
 
 
-def get_supervised_score(labels, annotated_data):
+def get_supervised_score(labels, sentences, annotated_data):
     # Map sentences to cluster_idx for each kept/excluded cluster
     predicted_idxs = {}
     for key, clusters in annotated_data.items():
@@ -379,8 +379,30 @@ def get_supervised_score(labels, annotated_data):
                     y_pred.append(item_i == item_j)
                     y_true.append(False)
 
-    # Return F1 score between target and predicted
-    return f1_score(y_true, y_pred)
+    f1_prev = f1_score(y_true, y_pred)
+
+    with open(f"expert_annotations/dec3_expert_knowledge.pck", "rb") as f:
+        dec3_data = pickle.load(f)
+
+    y_true, y_pred = [], []
+
+    raw_sentences = [s[0] for s in sentences]
+
+    sentence_idxs = []
+    for index, samples in dec3_data.items():
+        for sample in samples:
+            sent_idx = raw_sentences.index(sample)
+            sent_label = labels[sent_idx]
+            sentence_idxs.append((sent_label, index))
+
+    for (label1, cluster1), (label2, cluster2) in product(sentence_idxs, sentence_idxs):
+        if cluster1 == cluster2:
+            y_true.append(True)
+            y_pred.append(label1 == label2)
+
+    f1_dec3 = f1_score(y_true, y_pred)
+
+    return (f1_prev + f1_dec3) / 2
 
 
 def get_rows(sentences, sentence_vectors, labels, icf_sents, icf_vectors, icf_labels):
