@@ -848,5 +848,5 @@ def items_clustering():
 
 
 if __name__ == "__main__":
-    domains_clustering()
+    # domains_clustering()
     items_clustering()
