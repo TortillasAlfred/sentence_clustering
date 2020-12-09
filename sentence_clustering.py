@@ -88,13 +88,13 @@ def get_vocab_counter(sents, word_filtering):
     sents = [sent.replace(".", " . ") for sent in sents]
     sents = [sent.replace("'", " ' ") for sent in sents]
     sents = [sent.lower() for sent in sents]
+    sents = [sent.split() for sent in sents]
+    sents = [sent for sent in sents if len(sent) > 2]
 
     if word_filtering == "none":
-        sents = [sent.split() for sent in sents]
         sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
     elif "automatic_filtering" in word_filtering:
         filter_freq = int(word_filtering.split("_")[-1])
-        sents = [sent.split() for sent in sents]
         words = [word for sent in sents for word in sent]
 
         vocab = Counter(words)
