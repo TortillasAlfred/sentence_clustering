@@ -62,9 +62,61 @@ def extract_examples(set):
         valid_data = pickle.load(f)
 
     train_examples = get_examples_from_data(train_data)
+    train_dec3_examples = get_dec3_examples()
+    train_examples.extend(train_dec3_examples)
     valid_examples = get_examples_from_data(valid_data)
 
     return train_examples, valid_examples
+
+
+def extract_classif_examples():
+    with open(f"expert_annotations/dec3_expert_knowledge.pck", "rb") as f:
+        data = pickle.load(f)
+
+    examples = []
+
+    # Rebalance
+    items_per_label = [len(d) for d in data.values()]
+    target_num = max(items_per_label)
+    mults_per_label = [int(target_num / l) for l in items_per_label]
+
+    for (label, samples), mult in zip(data.items(), mults_per_label):
+        for sample in samples:
+            for _ in range(mult):
+                examples.append((sample, label))
+
+    num_labels = len(data)
+
+    return examples, num_labels
+
+
+def get_dec3_examples():
+    with open(f"expert_annotations/dec3_expert_knowledge.pck", "rb") as f:
+        data = pickle.load(f)
+
+    examples = []
+
+    # Type 1 : 2 kept from same cluster, label = 1
+    type1 = []
+    for cluster in data.values():
+        for i in range(len(cluster)):
+            for j in range(i + 1, len(cluster)):
+                type1.append([cluster[i], cluster[j], 1])
+
+    # Type 3 : 2 kept from different clusters, label = 0
+    type3 = []
+    for cluster_i in range(len(data)):
+        for cluster_j in range(cluster_i + 1, len(data)):
+            for item_i in data[cluster_i]:
+                for item_j in data[cluster_j]:
+                    type3.append([item_i, item_j, 0])
+
+    n_repeats_positive = int((len(type3)) / len(type1))
+    examples.extend(type1 * n_repeats_positive)
+
+    examples.extend(type3)
+
+    return examples
 
 
 def get_binary_experimental_setup():
@@ -94,6 +146,18 @@ def get_binary_experimental_setup():
     )
 
     return train_examples, evaluator
+
+
+def get_softmax_experimental_setup():
+    train_examples, num_labels = extract_classif_examples()
+
+    # Postprocess train examples to correct format
+    train_examples = [
+        InputExample(texts=[sent, sent], label=label)
+        for (sent, label) in train_examples
+    ] * 100
+
+    return train_examples, num_labels
 
 
 def get_mse_experimental_setup(student_model, teacher_model):
@@ -154,12 +218,28 @@ def main(model_name, batch_size):
         cosine_dataset, shuffle=True, batch_size=batch_size, num_workers=0
     )
 
+    # Softmax prediction setting
+    softmax_train_examples, num_labels = get_softmax_experimental_setup()
+    softmax_dataset = SentencesDataset(softmax_train_examples, model)
+    softmax_dataloader = DataLoader(
+        softmax_dataset, shuffle=True, batch_size=batch_size, num_workers=0
+    )
+
     # Training
     model.fit(
         [
-            (binary_dataloader, ContrastiveLoss(model=model)),
-            (mse_dataloader, MSELoss(model=model, weight=0.5)),
-            (cosine_dataloader, CosineSimilarityLoss(model=model, weight=0.5)),
+            (binary_dataloader, ContrastiveLoss(model=model, weight=0.5)),
+            (
+                softmax_dataloader,
+                SoftmaxLoss(
+                    model=model,
+                    sentence_embedding_dimension=model.get_sentence_embedding_dimension(),
+                    num_labels=num_labels,
+                    weight=1.0,
+                ),
+            ),
+            (mse_dataloader, MSELoss(model=model, weight=0.25)),
+            (cosine_dataloader, CosineSimilarityLoss(model=model, weight=0.25)),
         ],
         evaluator=evaluator,
         evaluation_steps=1000,
@@ -178,12 +258,14 @@ class ContrastiveLoss(nn.Module):
         distance_metric=losses.SiameseDistanceMetric.COSINE_DISTANCE,
         margin=0.5,
         size_average=True,
+        weight=1.0,
     ):
         super(ContrastiveLoss, self).__init__()
         self.distance_metric = distance_metric
         self.margin = margin
         self.model = model
         self.size_average = size_average
+        self.weight = weight
 
     def forward(self, sentence_features, labels):
         reps = [
@@ -199,6 +281,36 @@ class ContrastiveLoss(nn.Module):
             * torch.nn.functional.relu(self.margin - distances).pow(2)
         )
         loss = losses.mean() if self.size_average else losses.sum()
+        loss = loss * self.weight
+        return loss
+
+
+class SoftmaxLoss(nn.Module):
+    def __init__(self, model, sentence_embedding_dimension, num_labels, weight=1.0):
+        super(SoftmaxLoss, self).__init__()
+        self.model = model
+        self.num_labels = num_labels
+        self.classifier = nn.Linear(sentence_embedding_dimension, num_labels)
+        self.weight = weight
+
+    def forward(self, sentence_features, labels):
+        reps = [
+            self.model(sentence_feature)["sentence_embedding"]
+            for sentence_feature in sentence_features
+        ]
+        rep_a, rep_b = reps
+
+        vectors_concat = []
+
+        vectors_concat.append(rep_a)
+
+        features = torch.cat(vectors_concat, 1)
+
+        output = self.classifier(features)
+        loss_fct = nn.CrossEntropyLoss()
+
+        loss = loss_fct(output, labels.view(-1))
+        loss = self.weight * loss
         return loss
 
 
