@@ -59,7 +59,10 @@ def load_all_domains():
 
 
 def load_all_items():
-    return load_all_csv_rows("Full data items.csv", encoding="Windows-1252")
+    items = load_all_csv_rows("Full data items.csv", encoding="Windows-1252")
+    items = [item for item in items if len(item.split()) > 2]
+
+    return items
 
 
 def create_folder_for_config(config, pre_config, base_path):
@@ -88,12 +91,12 @@ def get_vocab_counter(sents, word_filtering):
     sents = [sent.replace(".", " . ") for sent in sents]
     sents = [sent.replace("'", " ' ") for sent in sents]
     sents = [sent.lower() for sent in sents]
-    sents = [sent.split() for sent in sents]
-    sents = [sent for sent in sents if len(sent) > 2]
 
     if word_filtering == "none":
+        sents = [sent.split() for sent in sents]
         sents = [(raw_sents[i], sent) for i, sent in enumerate(sents) if len(sent) > 0]
     elif "automatic_filtering" in word_filtering:
+        sents = [sent.split() for sent in sents]
         filter_freq = int(word_filtering.split("_")[-1])
         words = [word for sent in sents for word in sent]
 
@@ -245,6 +248,7 @@ def run_clustering(
     pre_config,
     save_path,
     annotated_data,
+    sentence_annotations,
 ):
     clustering_obj = get_clustering_obj(method, clusters)
     icf_raw_sents = None
@@ -321,7 +325,7 @@ def run_clustering(
         score = 0.0
     else:
         # score = silhouette_score(sentence_vectors, labels, metric="cosine")
-        score = get_supervised_score(labels, sentences, annotated_data)
+        score = get_supervised_score(labels, sentence_annotations, annotated_data)
 
     return (
         score,
@@ -340,7 +344,7 @@ def get_annotated_data(set):
     return annotated_data
 
 
-def get_supervised_score(labels, sentences, annotated_data):
+def get_supervised_score(labels, sentence_annotations, annotated_data):
     # Map sentences to cluster_idx for each kept/excluded cluster
     predicted_idxs = {}
     for key, clusters in annotated_data.items():
@@ -381,24 +385,14 @@ def get_supervised_score(labels, sentences, annotated_data):
 
     f1_prev = f1_score(y_true, y_pred)
 
-    with open(f"expert_annotations/dec3_expert_knowledge.pck", "rb") as f:
-        dec3_data = pickle.load(f)
-
     y_true, y_pred = [], []
 
-    raw_sentences = [s[0] for s in sentences]
-
-    sentence_idxs = []
-    for index, samples in dec3_data.items():
-        for sample in samples:
-            sent_idx = raw_sentences.index(sample)
-            sent_label = labels[sent_idx]
-            sentence_idxs.append((sent_label, index))
-
-    for (label1, cluster1), (label2, cluster2) in product(sentence_idxs, sentence_idxs):
+    for (idx1, cluster1), (idx2, cluster2) in product(
+        sentence_annotations, sentence_annotations
+    ):
         if cluster1 == cluster2:
             y_true.append(True)
-            y_pred.append(label1 == label2)
+            y_pred.append(labels[idx1] == label2[idx2])
 
     f1_dec3 = f1_score(y_true, y_pred)
 
@@ -616,7 +610,14 @@ def reduce_dim(sent_embeddings, reduced_dim, apply=True):
 
 @delayed
 def launch_from_config(
-    config, pre_config, base_path, vocab, sents, sent_embeddings, annotated_data
+    config,
+    pre_config,
+    base_path,
+    vocab,
+    sents,
+    sent_embeddings,
+    annotated_data,
+    sentence_annotations,
 ):
     save_path = create_folder_for_config(config, pre_config, base_path)
 
@@ -634,6 +635,7 @@ def launch_from_config(
         pre_config,
         save_path,
         annotated_data,
+        sentence_annotations,
     )
 
     save_results(
@@ -807,6 +809,26 @@ def items_clustering():
                 else:
                     print(cleaned_item + ",")
 
+    with open(f"expert_annotations/dec3_expert_knowledge.pck", "rb") as f:
+        dec3_data = pickle.load(f)
+
+    sentence_annotations = []
+    for index, samples in dec3_data.items():
+        for item in samples:
+            cleaned_item = " ".join(item.split())
+            cleaned_item = cleaned_item.replace('"', "")
+            cleaned_item = cleaned_item.replace(",", " ")
+            cleaned_item = cleaned_item.replace("/", " / ")
+            cleaned_item = cleaned_item.replace(".-", " .- ")
+            cleaned_item = cleaned_item.replace(".", " . ")
+            cleaned_item = cleaned_item.replace("  ", " ")
+            cleaned_item = cleaned_item.replace("'", " ' ")
+            cleaned_item = cleaned_item.lower()
+            if cleaned_item in sents:
+                sentence_annotations.append((sents.index(cleaned_item), index))
+            else:
+                print(cleaned_item + ",")
+
     results_dir = "./results/items"
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
@@ -855,6 +877,7 @@ def items_clustering():
                     sents,
                     sent_embeddings,
                     annotated_items_idxs,
+                    sentence_annotations,
                 )
                 for config in all_configs
             )
