@@ -3,8 +3,10 @@ import re
 import pickle
 
 import numpy as np
+from math import ceil
 
 excluded_regex = re.compile(r"(?: ?)<EXCLUDE\/>(?: ?)(.*)")
+np.random.seed(42)
 rng = np.random.default_rng()
 
 
@@ -54,12 +56,12 @@ def gather_items(items):
     with open("expert_annotations/items/all.pck", "wb") as f:
         pickle.dump(filtered_items, f)
 
-    # SEPARATE BOTH FILES IN TRAIN-VALID WITH 0.7:0.3 RATIO
+    # SEPARATE BOTH FILES IN TRAIN-VALID WITH 0.85:0.3 RATIO
     train_items = {"kept": [], "excluded": []}
     valid_items = {"kept": [], "excluded": []}
 
     for kept_items_cluster, excluded_items_cluster in zip(kept_items, excluded_items):
-        n_valid_kept = int(0.3 * len(kept_items_cluster))
+        n_valid_kept = ceil(0.3 * len(kept_items_cluster))
         valid_kept = rng.choice(len(kept_items_cluster), n_valid_kept)
 
         valid_kept_items_cluster = []
@@ -73,7 +75,7 @@ def gather_items(items):
         train_items["kept"].append(train_kept_items_cluster)
         valid_items["kept"].append(valid_kept_items_cluster)
 
-        n_valid_excluded = int(0.3 * len(excluded_items_cluster))
+        n_valid_excluded = ceil(0.3 * len(excluded_items_cluster))
         valid_excluded = rng.choice(len(excluded_items_cluster), n_valid_excluded)
 
         valid_excluded_items_cluster = []
@@ -126,7 +128,7 @@ def gather_domains(domains):
     for kept_domains_cluster, excluded_domains_cluster in zip(
         kept_domains, excluded_domains
     ):
-        n_valid_kept = int(0.3 * len(kept_domains_cluster))
+        n_valid_kept = ceil(0.3 * len(kept_domains_cluster))
         valid_kept = rng.choice(len(kept_domains_cluster), n_valid_kept)
 
         valid_kept_domains_cluster = []
@@ -140,7 +142,7 @@ def gather_domains(domains):
         train_domains["kept"].append(train_kept_domains_cluster)
         valid_domains["kept"].append(valid_kept_domains_cluster)
 
-        n_valid_excluded = int(0.3 * len(excluded_domains_cluster))
+        n_valid_excluded = ceil(0.3 * len(excluded_domains_cluster))
         valid_excluded = rng.choice(len(excluded_domains_cluster), n_valid_excluded)
 
         valid_excluded_domains_cluster = []

@@ -1,8 +1,8 @@
 #!/bin/bash                                      
 #SBATCH --account=def-adurand                                 # Account with resources
-#SBATCH --cpus-per-task=4                                     # Number of CPUs
-#SBATCH --mem=25G                                             # memory (per node)
-#SBATCH --time=0-03:00                                        # time (DD-HH:MM)
+#SBATCH --cpus-per-task=30                                    # Number of CPUs
+#SBATCH --mem=125G                                            # memory (per node)
+#SBATCH --time=0-01:00                                        # time (DD-HH:MM)
 #SBATCH --mail-user=mathieu.godbout.3@ulaval.ca               # Where to email
 #SBATCH --mail-type=FAIL                                      # Email when a job fails
 
