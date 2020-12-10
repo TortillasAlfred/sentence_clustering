@@ -324,8 +324,9 @@ def run_clustering(
     if len(set(labels)) == 1:
         score = 0.0
     else:
-        # score = silhouette_score(sentence_vectors, labels, metric="cosine")
-        score = get_supervised_score(labels, sentence_annotations, annotated_data)
+        score = silhouette_score(sentence_vectors, labels, metric="cosine")
+        score += get_supervised_score(labels, sentence_annotations, annotated_data)
+        score /= 2
 
     return (
         score,
@@ -392,7 +393,7 @@ def get_supervised_score(labels, sentence_annotations, annotated_data):
     ):
         if cluster1 == cluster2:
             y_true.append(True)
-            y_pred.append(labels[idx1] == label2[idx2])
+            y_pred.append(labels[idx1] == labels[idx2])
 
     f1_dec3 = f1_score(y_true, y_pred)
 
@@ -656,7 +657,7 @@ def launch_from_config(
 def get_hparams():
     hparams = OrderedDict()
 
-    hparams["clusters"] = list(range(4, 8))
+    hparams["clusters"] = list(range(4, 12))
     hparams["reduced_dim"] = [
         "umap_5",
         "umap_10",
@@ -667,7 +668,7 @@ def get_hparams():
         "none",
     ]
     hparams["method"] = [
-        "hierarchical_icf",
+        "hierarchical",
     ]
 
     pre_hparams = OrderedDict()
@@ -806,7 +807,7 @@ def items_clustering():
                 cleaned_item = cleaned_item.lower()
                 if cleaned_item in sents:
                     annotated_items_idxs[key][-1].append(sents.index(cleaned_item))
-                else:
+                elif len(cleaned_item.split()) > 2:
                     print(cleaned_item + ",")
 
     with open(f"expert_annotations/dec3_expert_knowledge.pck", "rb") as f:
@@ -824,9 +825,11 @@ def items_clustering():
             cleaned_item = cleaned_item.replace("  ", " ")
             cleaned_item = cleaned_item.replace("'", " ' ")
             cleaned_item = cleaned_item.lower()
+            if cleaned_item[-1] == " ":
+                cleaned_item = cleaned_item[:-1]
             if cleaned_item in sents:
                 sentence_annotations.append((sents.index(cleaned_item), index))
-            else:
+            elif len(cleaned_item.split()) > 2:
                 print(cleaned_item + ",")
 
     results_dir = "./results/items"
@@ -837,13 +840,6 @@ def items_clustering():
     hparams, pre_hparams = get_hparams()
 
     results = []
-
-    items_only_filters = [
-        "automatic_filtering_10",
-        "automatic_filtering_20",
-        "automatic_filtering_30",
-    ]
-    pre_hparams["word_filtering"].extend(items_only_filters)
 
     all_configs = list(
         product(*[[(key, val) for val in vals] for key, vals in hparams.items()])
