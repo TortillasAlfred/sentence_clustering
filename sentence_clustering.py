@@ -207,11 +207,7 @@ def get_vocab_counter(sents, word_filtering):
 def preprocess(sents, word_filtering, vectors):
     vocab_counter, sents = get_vocab_counter(sents, word_filtering)
 
-    vocab = Vocab(
-        vocab_counter,
-        vectors=None,
-        specials=[],
-    )
+    vocab = Vocab(vocab_counter, vectors=None, specials=[],)
 
     return vocab, sents
 
@@ -441,19 +437,17 @@ def save_results(
     # PLOT CLUSTERS
     reduced_vectors = PCA(n_components=2).fit_transform(sentence_vectors)
 
-    plt.figure()
-    plt.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1], c=labels)
-    plt.xticks()
-    plt.yticks()
+    fig, ax = plt.subplots()
+    scatter = ax.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1], c=labels)
+    ax.legend(*scatter.legend_elements())
     plt.savefig(os.path.join(save_path, "pca_clusters.png"))
     plt.close()
 
     reduced_vectors = TSNE(n_components=2).fit_transform(sentence_vectors)
 
-    plt.figure()
-    plt.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1], c=labels)
-    plt.xticks()
-    plt.yticks()
+    fig, ax = plt.subplots()
+    scatter = ax.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1], c=labels)
+    ax.legend(*scatter.legend_elements())
     plt.savefig(os.path.join(save_path, "tsne_clusters.png"))
     plt.close()
 
@@ -504,7 +498,8 @@ def save_results(
 
 
 def sentence_vectorize(reduce_method, model, sents, vocab):
-    bert_model = SentenceTransformer(f"./best_finetuned_models/{model}/")
+    # bert_model = SentenceTransformer(f"./best_finetuned_models/{model}/")
+    bert_model = SentenceTransformer(model)
     bert_sents = [" ".join(s[1]) for s in sents]
     if reduce_method == "sent":
         sentence_embeddings = bert_model.encode(bert_sents, show_progress_bar=False)
@@ -512,9 +507,7 @@ def sentence_vectorize(reduce_method, model, sents, vocab):
         return sentence_embeddings
     else:
         token_embeddings = bert_model.encode(
-            bert_sents,
-            output_value="token_embeddings",
-            show_progress_bar=False,
+            bert_sents, output_value="token_embeddings", show_progress_bar=False,
         )
 
         def bert_mean_tokens(sent_embedding, weights=None):
@@ -640,13 +633,7 @@ def launch_from_config(
     )
 
     save_results(
-        sents,
-        sent_embeddings,
-        labels,
-        save_path,
-        icf_sents,
-        icf_vectors,
-        icf_labels,
+        sents, sent_embeddings, labels, save_path, icf_sents, icf_vectors, icf_labels,
     )
 
     config.update(pre_config)
@@ -657,27 +644,20 @@ def launch_from_config(
 def get_hparams():
     hparams = OrderedDict()
 
-    hparams["clusters"] = list(range(4, 12))
+    hparams["clusters"] = list(range(4, 40))
     hparams["reduced_dim"] = [
         "umap_5",
         "umap_10",
         "umap_50",
-        "pca_5",
-        "pca_10",
-        "pca_50",
         "none",
     ]
-    hparams["method"] = [
-        "hierarchical",
-    ]
+    hparams["method"] = ["hierarchical", "hierarchical_icf"]
 
     pre_hparams = OrderedDict()
 
     pre_hparams["word_filtering"] = ["none"]
     pre_hparams["reduce_method"] = ["sent"]
     pre_hparams["model"] = [
-        "distilbert-base-nli-mean-tokens",
-        "bert-base-nli-mean-tokens",
         "distilbert-base-nli-stsb-mean-tokens",
         "bert-base-nli-stsb-mean-tokens",
     ]
