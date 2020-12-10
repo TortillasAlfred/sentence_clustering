@@ -498,8 +498,7 @@ def save_results(
 
 
 def sentence_vectorize(reduce_method, model, sents, vocab):
-    # bert_model = SentenceTransformer(f"./best_finetuned_models/{model}/")
-    bert_model = SentenceTransformer(model)
+    bert_model = SentenceTransformer(f"./best_finetuned_models/{model}/")
     bert_sents = [" ".join(s[1]) for s in sents]
     if reduce_method == "sent":
         sentence_embeddings = bert_model.encode(bert_sents, show_progress_bar=False)
