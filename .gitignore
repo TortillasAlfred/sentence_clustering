@@ -30,6 +30,8 @@ expert_annotations
 *.tar.gz
 *.bin
 *.out
+*.bbl
+*.blg
 best_results_sept_8/domains/clusters.xlsx
 best_results_sept_8/domains/config.txt
 best_results_sept_8/items/clusters.xlsx
